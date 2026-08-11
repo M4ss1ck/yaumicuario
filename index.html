@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aquarium</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🐟</text></svg>" />
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #04161c; overflow: hidden; }
+      #app { position: fixed; inset: 0; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #loading {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        color: #cfe8ef; font: 300 18px/1.4 system-ui, sans-serif;
+        background: #04161c; transition: opacity 0.8s ease; z-index: 10;
+      }
+      #loading.hidden { opacity: 0; pointer-events: none; }
+      .cursor-hidden, .cursor-hidden * { cursor: none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="loading">Loading aquarium…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
