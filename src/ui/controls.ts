@@ -38,6 +38,8 @@ export class Controls {
       const opt = document.createElement("option");
       opt.value = name;
       opt.textContent = name;
+      opt.style.backgroundColor = "#12333c";
+      opt.style.color = "#cfe8ef";
       if (name === current) opt.selected = true;
       select.appendChild(opt);
     }
@@ -141,6 +143,8 @@ function styleButton(el: HTMLElement): void {
     "color:#cfe8ef",
     "border:1px solid rgba(255,255,255,0.15)",
     "border-radius:7px",
+    "box-sizing:border-box",
+    "height:30px",
     "padding:6px 10px",
     "font:300 13px/1 system-ui,sans-serif",
     "cursor:pointer",
