@@ -6,7 +6,7 @@ import {
 } from "three";
 
 // Deterministic value noise so generated textures are stable across reloads.
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a |= 0;
@@ -75,21 +75,21 @@ function heightToNormalTexture(h: Float32Array, size: number, strength: number):
   return tex;
 }
 
-// Gravel/sand floor: a noisy albedo plus a matching normal map.
+// Sand substrate: a noisy albedo plus a matching normal map.
 export function makeGroundTextures(size = 512): { map: Texture; normalMap: Texture } {
   const rng = mulberry32(99);
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext("2d")!;
   // Base sandy tone.
-  ctx.fillStyle = "#3a3a30";
+  ctx.fillStyle = "#6b6350";
   ctx.fillRect(0, 0, size, size);
   // Scatter pebbles as soft radial blobs.
   for (let i = 0; i < 1400; i++) {
     const x = rng() * size;
     const y = rng() * size;
     const r = 3 + rng() * 10;
-    const shade = 30 + rng() * 70;
+    const shade = 45 + rng() * 45;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
     const hue = 30 + rng() * 25;
     g.addColorStop(0, `hsl(${hue} 18% ${shade}%)`);

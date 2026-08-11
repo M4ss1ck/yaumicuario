@@ -53,7 +53,7 @@ const SurfaceShader = {
     }
 
     void main() {
-      vec2 p = vSurfUv * vec2(12.0, 6.0);
+      vec2 p = vSurfUv * vec2(18.0, 18.0);
       float w = waves(p, uTime);
       float crest = pow(clamp(w * 0.5 + 0.5, 0.0, 1.0), 3.0);
       // Fine chop layered over the swell keeps it from looking like a wallpaper.

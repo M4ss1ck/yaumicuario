@@ -11,10 +11,10 @@ import { FLOOR_Y } from "./tank";
 import { makeGroundTextures } from "../utils/textures";
 import { registerCaustics } from "./caustics";
 
-// Gravel floor with procedural PBR textures, receiving caustics and shadows.
+// Sand substrate with procedural PBR textures, receiving caustics and shadows.
 export function buildGround(scene: Scene): Mesh {
   const { map, normalMap } = makeGroundTextures();
-  const repeat = 16;
+  const repeat = 40;
   for (const t of [map, normalMap]) {
     t.wrapS = t.wrapT = RepeatWrapping;
     t.repeat.set(repeat, repeat * (TANK.depth / TANK.width));
@@ -26,7 +26,7 @@ export function buildGround(scene: Scene): Mesh {
     normalScale: new Vector2(1.2, 1.2),
     roughness: 0.95,
     metalness: 0,
-    color: 0x8a8470
+    color: 0xa89b7e
   });
   registerCaustics(mat);
 

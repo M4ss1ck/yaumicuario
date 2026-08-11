@@ -1,4 +1,5 @@
 import type { Material } from "three";
+import { HALF } from "./dimensions";
 
 // Procedural caustics: animated rippling light projected onto surfaces.
 // We inject a cheap layered-cell pattern into a MeshStandardMaterial's emissive
@@ -41,12 +42,12 @@ const VERT_WORLD = /* glsl */ `
 
 const FRAG_APPLY = /* glsl */ `
   {
-    vec2 cp = vWorldPosCaustic.xz * 1.6;
+    vec2 cp = vWorldPosCaustic.xz * 1.1;
     float t = uCausticTime;
     float c = caustic(cp, t) + caustic(cp * 1.9 + 7.0, t * 1.3);
     c = pow(clamp(1.0 - c * 0.7, 0.0, 1.0), 3.0);
     // Strongest on the floor (deep), fading toward the surface.
-    float depthFade = smoothstep(2.6, -2.6, vWorldPosCaustic.y);
+    float depthFade = smoothstep(${(HALF.y * 0.75).toFixed(2)}, ${(-HALF.y).toFixed(2)}, vWorldPosCaustic.y);
     vec3 causticColor = vec3(0.45, 0.8, 0.78) * c * depthFade * 1.1;
     totalEmissiveRadiance += causticColor;
   }

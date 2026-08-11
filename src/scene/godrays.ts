@@ -8,7 +8,6 @@ import {
   type Scene
 } from "three";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { HALF } from "./dimensions";
 import { makeMoteSprite } from "../utils/textures";
 
 // Screen-space volumetric light scattering (god rays). Radially blurs the bright
@@ -63,7 +62,9 @@ export function createGodRaysPass(): ShaderPass {
   return new ShaderPass(GodRaysShader);
 }
 
-// Suspended particles (motes) drifting slowly to sell the water volume.
+// Suspended particles (motes) drifting slowly to sell the water volume. They
+// are confined to the viewed region in front of the camera rather than the
+// whole tank.
 export class Motes {
   readonly points: Points;
   private velocities: Float32Array;
@@ -74,9 +75,9 @@ export class Motes {
     const positions = new Float32Array(count * 3);
     this.velocities = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() * 2 - 1) * HALF.x;
-      positions[i * 3 + 1] = (Math.random() * 2 - 1) * HALF.y;
-      positions[i * 3 + 2] = (Math.random() * 2 - 1) * HALF.z;
+      positions[i * 3] = (Math.random() * 2 - 1) * 7;
+      positions[i * 3 + 1] = (Math.random() * 2 - 1) * 3.4;
+      positions[i * 3 + 2] = -9 + Math.random() * 16;
       this.velocities[i * 3] = (Math.random() - 0.5) * 0.02;
       this.velocities[i * 3 + 1] = Math.random() * 0.03 + 0.005;
       this.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
@@ -84,7 +85,7 @@ export class Motes {
     const geo = new BufferGeometry();
     geo.setAttribute("position", new BufferAttribute(positions, 3));
     const mat = new PointsMaterial({
-      size: 0.02,
+      size: 0.035,
       map: makeMoteSprite(),
       transparent: true,
       depthWrite: false,
@@ -113,11 +114,11 @@ export class Motes {
       a[i * 3] += this.velocities[i * 3] * dt;
       a[i * 3 + 1] += this.velocities[i * 3 + 1] * dt;
       a[i * 3 + 2] += this.velocities[i * 3 + 2] * dt;
-      // Wrap when a particle rises above the surface.
-      if (a[i * 3 + 1] > HALF.y) {
-        a[i * 3 + 1] = -HALF.y;
-        a[i * 3] = (Math.random() * 2 - 1) * HALF.x;
-        a[i * 3 + 2] = (Math.random() * 2 - 1) * HALF.z;
+      // Wrap when a particle rises above the viewed region; respawn at the bottom.
+      if (a[i * 3 + 1] > 3.4) {
+        a[i * 3 + 1] = -3.4;
+        a[i * 3] = (Math.random() * 2 - 1) * 7;
+        a[i * 3 + 2] = -9 + Math.random() * 16;
       }
     }
     pos.needsUpdate = true;

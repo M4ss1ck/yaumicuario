@@ -3,10 +3,12 @@ import { createRenderer } from "./renderer";
 import { loadQuality, saveQuality, type QualityName } from "./quality";
 import { buildTank } from "./scene/tank";
 import { buildGround } from "./scene/ground";
+import { buildRocks } from "./scene/rocks";
 import { buildLighting } from "./scene/lighting";
 import { buildWater, updateWater } from "./scene/water";
 import { Motes } from "./scene/godrays";
 import { updateCaustics } from "./scene/caustics";
+import { buildPlants, updatePlants } from "./scene/plants";
 import { updateWiggle } from "./fish/wiggle";
 import { FishManager } from "./fish/FishManager";
 import { PostPipeline } from "./post/composer";
@@ -89,12 +91,14 @@ function boot(): void {
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, 0.25, 5.2);
-  camera.lookAt(0, 0, 0);
+  camera.position.set(0, -0.5, 6.0);
+  camera.lookAt(0, -0.7, 0);
 
   // Build the static scene.
   buildTank(scene);
   buildGround(scene);
+  buildRocks(scene);
+  buildPlants(scene);
   const lighting = buildLighting(scene, renderer, quality);
   const water = buildWater(scene, lighting.sun.position);
   let motes = new Motes(scene, quality.motes);
@@ -168,6 +172,7 @@ function boot(): void {
     fishManager.update(dt, camera.position);
     updateWater(water, dt);
     updateCaustics(elapsed);
+    updatePlants(elapsed);
     updateWiggle(elapsed);
     motes.update(dt);
     updateSunScreen();

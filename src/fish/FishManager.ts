@@ -36,14 +36,14 @@ interface Species {
 // direction measured per model. Models that ship without a swim clip are
 // flagged so they get the fallback wiggle shader.
 const ROSTER: Species[] = [
-  { file: "paracheirodon_innesi___tetra_neon.glb", bodyAxis: "z", headDir: 1, count: 14, length: 0.045, speedBL: 5.0, turnRate: 5.0, animated: true },
-  { file: "cc0____pale_bleak_z._platypus_animation.glb", bodyAxis: "x", headDir: -1, count: 6, length: 0.18, speedBL: 3.6, turnRate: 4.0, animated: true },
-  { file: "guppy_fish.glb", bodyAxis: "z", headDir: -1, count: 6, length: 0.055, speedBL: 4.5, turnRate: 4.8, animated: true },
-  { file: "myllokunmingia_fengjiaoa.glb", bodyAxis: "z", headDir: 1, count: 4, length: 0.04, speedBL: 5.0, turnRate: 4.6, animated: true },
-  { file: "betta_splendens.glb", bodyAxis: "z", headDir: 1, count: 2, length: 0.08, speedBL: 2.6, turnRate: 3.6, animated: true },
-  { file: "cc0___japanese_common_loach.glb", bodyAxis: "x", headDir: -1, count: 3, length: 0.15, speedBL: 3.0, turnRate: 4.0, animated: true },
-  { file: "silakka_-_stromming_-_baltic_herring.glb", bodyAxis: "z", headDir: -1, count: 5, length: 0.26, speedBL: 3.2, turnRate: 3.6, animated: false },
-  { file: "ahven_-_abborre_-_perch.glb", bodyAxis: "z", headDir: 1, count: 3, length: 0.32, speedBL: 2.8, turnRate: 3.4, animated: false },
+  { file: "paracheirodon_innesi___tetra_neon.glb", bodyAxis: "z", headDir: 1, count: 34, length: 0.045, speedBL: 5.0, turnRate: 5.0, animated: true },
+  { file: "cc0____pale_bleak_z._platypus_animation.glb", bodyAxis: "x", headDir: -1, count: 10, length: 0.18, speedBL: 3.6, turnRate: 4.0, animated: true },
+  { file: "guppy_fish.glb", bodyAxis: "z", headDir: -1, count: 12, length: 0.055, speedBL: 4.5, turnRate: 4.8, animated: true },
+  { file: "myllokunmingia_fengjiaoa.glb", bodyAxis: "z", headDir: 1, count: 8, length: 0.04, speedBL: 5.0, turnRate: 4.6, animated: true },
+  { file: "betta_splendens.glb", bodyAxis: "z", headDir: 1, count: 3, length: 0.08, speedBL: 2.6, turnRate: 3.6, animated: true },
+  { file: "cc0___japanese_common_loach.glb", bodyAxis: "x", headDir: -1, count: 4, length: 0.15, speedBL: 3.0, turnRate: 4.0, animated: true },
+  { file: "silakka_-_stromming_-_baltic_herring.glb", bodyAxis: "z", headDir: -1, count: 9, length: 0.26, speedBL: 3.2, turnRate: 3.6, animated: false },
+  { file: "ahven_-_abborre_-_perch.glb", bodyAxis: "z", headDir: 1, count: 4, length: 0.32, speedBL: 2.8, turnRate: 3.4, animated: false },
   { file: "model_9a_-_blacktip_shark.glb", bodyAxis: "x", headDir: -1, count: 1, length: 1.2, speedBL: 0.5, turnRate: 3.0, animated: true }
 ];
 
@@ -100,7 +100,7 @@ export class FishManager {
       // Shoal mates start clustered and share one wander target, otherwise they
       // spawn too far apart to ever see each other and cohesion never engages.
       const b = this.bounds;
-      const spread = Math.min(species.length * 10, 0.8);
+      const spread = Math.min(species.length * 14, 1.4);
       const shoalCenter = new Vector3(
         b.min.x + spread + Math.random() * (b.max.x - b.min.x - spread * 2),
         b.min.y + spread + Math.random() * (b.max.y - b.min.y - spread * 2),
