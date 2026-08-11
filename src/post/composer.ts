@@ -82,10 +82,12 @@ export class PostPipeline {
 
     this.composer.addPass(new RenderPass(scene, camera));
 
+    // Focus is a fixed distance into the fish region, not the camera's
+    // distance from the origin, so the near shoals stay sharp.
     this.bokeh = new BokehPass(scene, camera, {
-      focus: camera.position.length(),
-      aperture: 0.0006,
-      maxblur: 0.008
+      focus: 3.0,
+      aperture: 0.0003,
+      maxblur: 0.006
     });
     this.composer.addPass(this.bokeh);
 

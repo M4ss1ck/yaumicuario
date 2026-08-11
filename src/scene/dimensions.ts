@@ -11,10 +11,12 @@ export const TANK = {
 export const HALF = new Vector3(TANK.width / 2, TANK.height / 2, TANK.depth / 2);
 
 // Region the fish steer within: a fixed volume in front of the camera, far
-// smaller than the tank so the shoals stay in view.
+// smaller than the tank so the shoals stay in view. The box is deliberately
+// close to the camera so the shoals sit in the near and mid field where their
+// model detail is visible.
 export function fishBounds(): Box3 {
   return new Box3(
-    new Vector3(-5.0, -2.7, -7.0),
-    new Vector3(5.0, 2.6, 5.0)
+    new Vector3(-4.6, -2.5, -3.5),
+    new Vector3(4.6, 2.2, 5.6)
   );
 }
