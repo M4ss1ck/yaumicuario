@@ -4,19 +4,24 @@ import {
   DoubleSide,
   Float32BufferAttribute,
   Mesh,
-  MeshStandardMaterial,
+  MeshPhysicalMaterial,
   type Material,
-  type Scene
+  type Scene,
+  type Texture,
+  Vector3
 } from "three";
 import { HALF } from "./dimensions";
 import { registerCaustics } from "./caustics";
-import { mulberry32 } from "../utils/textures";
+import { makePlantTextures, mulberry32 } from "../utils/textures";
 
 // Procedural aquarium plants: tall ribbon-leaved eelgrass (Vallisneria) in
 // clumps, a low carpet of short grass, and short broad-leaf rosettes
-// (Cryptocoryne / small Echinodorus). Every blade is a flat tapered ribbon
-// that sways in the vertex shader, driven by per-vertex phase and amplitude
-// attributes plus a shared time uniform.
+// (Cryptocoryne / small Echinodorus). Every blade is a tapered ribbon with a
+// shallow cambered cross-section (left edge, raised centre ridge, right edge)
+// and full UVs over runtime-generated PBR textures, that sways in the vertex
+// shader driven by per-vertex phase and amplitude attributes plus a shared
+// time uniform. A thickness-texture-driven backlight term lights thin edges
+// and veins when the sun is behind a blade.
 
 interface PlantUniforms {
   uPlantTime: { value: number };
@@ -28,6 +33,7 @@ const registered: PlantUniforms[] = [];
 // Same guard as the caustics/wiggle injections: chaining twice onto one
 // material would redefine uPlantTime and break the shader compile.
 const injected = new WeakSet<Material>();
+const backlit = new WeakSet<Material>();
 
 // One palette per tall clump: green vallisneria, lighter fresh green, and a
 // bronze/red stem plant. Planted tanks mix red and bronze stems among the
@@ -51,15 +57,16 @@ interface BladeParams {
   cTip: Color;
 }
 
-// Accumulate one blade as two vertex rows per segment, then a ribbon of quads.
-// Vertices stay in world space so every blade of a layer can be merged into a
-// single indexed geometry and drawn in one call.
+// Accumulate one blade as three vertex rows per segment, then a strip of quads
+// across the width. Vertices stay in world space so every blade of a layer can
+// be merged into a single indexed geometry and drawn in one call.
 function pushBlade(
   positions: number[],
   colors: number[],
   phases: number[],
   heightFracs: number[],
   swayAmps: number[],
+  uvs: number[],
   indices: number[],
   floorY: number,
   p: BladeParams
@@ -74,19 +81,34 @@ function pushBlade(
     const cx = p.bx + Math.cos(p.dir) * bend;
     const cz = p.bz + Math.sin(p.dir) * bend;
     const y = floorY + t * p.h;
-    // Two vertices per row, left and right of the blade centre line.
+    // Face normal of the blade's own plane, from its local tangent: raises the
+    // centre ridge so the three vertices are not collinear and the vertex
+    // normals shade smoothly across the width.
+    const nx = p.h * Math.cos(p.dir);
+    const ny = -2 * p.lean * t;
+    const nz = p.h * Math.sin(p.dir);
+    const nl = Math.hypot(nx, ny, nz);
+    const camber = halfW * 0.25; // shallow arch across the blade width
+    // Three vertices per row: left, raised centre ridge, right.
     positions.push(cx - lx * halfW, y, cz - lz * halfW);
+    positions.push(cx + (nx / nl) * camber, y + (ny / nl) * camber, cz + (nz / nl) * camber);
     positions.push(cx + lx * halfW, y, cz + lz * halfW);
     const c = p.cBase.clone().lerp(p.cTip, t);
-    colors.push(c.r, c.g, c.b, c.r, c.g, c.b);
-    phases.push(p.phase, p.phase);
-    heightFracs.push(t, t);
+    colors.push(c.r, c.g, c.b, c.r, c.g, c.b, c.r, c.g, c.b);
+    phases.push(p.phase, p.phase, p.phase);
+    heightFracs.push(t, t, t);
     const amp = p.h * 0.12;
-    swayAmps.push(amp, amp);
+    swayAmps.push(amp, amp, amp);
+    // U runs across the blade (0 left, 1 right), V from base to tip.
+    uvs.push(0, t, 0.5, t, 1, t);
   }
   for (let i = 0; i < p.N; i++) {
-    const a = start + i * 2, b = a + 1, c2 = a + 2, d = a + 3;
-    indices.push(a, c2, b, b, c2, d);
+    const l0 = start + i * 3; // left, row i
+    const c0 = l0 + 1; // centre, row i
+    const r0 = l0 + 2; // right, row i
+    const l1 = l0 + 3, c1 = l0 + 4, r1 = l0 + 5; // row i + 1
+    indices.push(l0, l1, c0, c0, l1, c1); // left half quad
+    indices.push(c0, c1, r0, r0, c1, r1); // right half quad
   }
 }
 
@@ -98,11 +120,13 @@ function buildLayerGeometry(
   phases: number[],
   heightFracs: number[],
   swayAmps: number[],
+  uvs: number[],
   indices: number[]
 ): BufferGeometry {
   const geo = new BufferGeometry();
   geo.setAttribute("position", new Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new Float32BufferAttribute(colors, 3));
+  geo.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
   geo.setAttribute("aPhase", new Float32BufferAttribute(phases, 1));
   geo.setAttribute("aHeightFrac", new Float32BufferAttribute(heightFracs, 1));
   geo.setAttribute("aSwayAmp", new Float32BufferAttribute(swayAmps, 1));
@@ -151,6 +175,65 @@ function registerSway(material: Material): void {
   material.needsUpdate = true;
 }
 
+// Thin-leaf backlighting: sunlight passing through a blade toward the camera.
+// The term is directional (driven by the sun direction), gated by the
+// thickness texture so thin edges and veins transmit the most, and tinted by
+// the material diffuse colour, so it reads as translucency rather than a
+// constant glow. Replaces the old constant emissive lift, which the caustics
+// injection still builds on for its own animated light.
+const BACKLIGHT_PARS = /* glsl */ `
+  uniform vec3 uPlantSunDir;
+  uniform sampler2D uPlantThickness;
+  varying vec2 vPlantUv;
+`;
+
+const BACKLIGHT_APPLY = /* glsl */ `
+  {
+    // The material fragment normal is in view space, so the world-space sun
+    // direction (toward the sun) must be rotated into view space before the
+    // dot product. w = 0 keeps it a direction, ignoring camera translation.
+    vec3 plantSunView = normalize((viewMatrix * vec4(-uPlantSunDir, 0.0)).xyz);
+    // three.js keeps the fragment normal facing the camera on DoubleSide, so on
+    // the shadow side the visible face points away from the sun; that is where
+    // transmitted light is seen. Squaring keeps the falloff quick and restrained.
+    float plantFacing = clamp(-dot(normal, plantSunView), 0.0, 1.0);
+    plantFacing *= plantFacing;
+    float plantThick = texture2D(uPlantThickness, vPlantUv).r;
+    vec3 plantTint = vec3(1.0, 0.95, 0.84); // warm sun, matches the scene light
+    outgoingLight += plantTint * diffuseColor.rgb * plantThick * plantFacing * 0.4;
+  }
+`;
+
+function registerBacklight(material: Material, sunDir: Vector3, thicknessMap: Texture): void {
+  if (backlit.has(material)) return;
+  backlit.add(material);
+
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    prev?.call(material, shader, renderer);
+    shader.uniforms.uPlantSunDir = { value: sunDir.clone() };
+    shader.uniforms.uPlantThickness = { value: thicknessMap };
+
+    // The built-in shaders in this three version have no plain vUv varying (each
+    // map gets its own v*MapUv), so the backlight carries its own UV varying
+    // straight from the uv attribute.
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\n  varying vec2 vPlantUv;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vPlantUv = uv;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\n" + BACKLIGHT_PARS)
+      .replace(
+        "\tvec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;",
+        "\tvec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;\n" + BACKLIGHT_APPLY
+      );
+  };
+  const prevKey = material.customProgramCacheKey;
+  material.customProgramCacheKey = function () {
+    return prevKey.call(this) + "|plantbacklight";
+  };
+  material.needsUpdate = true;
+}
+
 export function buildPlants(scene: Scene): void {
   const rng = mulberry32(20260811);
   const floorY = -HALF.y;
@@ -163,6 +246,7 @@ export function buildPlants(scene: Scene): void {
   const aPhases: number[] = [];
   const aHeightFracs: number[] = [];
   const aSwayAmps: number[] = [];
+  const aUvs: number[] = [];
   const aIndices: number[] = [];
 
   for (let c = 0; c < 26; c++) {
@@ -184,6 +268,7 @@ export function buildPlants(scene: Scene): void {
         aPhases,
         aHeightFracs,
         aSwayAmps,
+        aUvs,
         aIndices,
         floorY,
         {
@@ -191,7 +276,7 @@ export function buildPlants(scene: Scene): void {
           bz: czC + Math.sin(a) * r,
           h,
           w: 0.035 + rng() * 0.03,
-          N: 7,
+          N: 18,
           dir: rng() * Math.PI * 2,
           lean: h * (0.12 + rng() * 0.18),
           phase: clumpPhase + rng() * 0.6, // a clump sways together, not at random
@@ -208,6 +293,7 @@ export function buildPlants(scene: Scene): void {
   const bPhases: number[] = [];
   const bHeightFracs: number[] = [];
   const bSwayAmps: number[] = [];
+  const bUvs: number[] = [];
   const bIndices: number[] = [];
 
   for (let k = 0; k < 3000; k++) {
@@ -219,6 +305,7 @@ export function buildPlants(scene: Scene): void {
       bPhases,
       bHeightFracs,
       bSwayAmps,
+      bUvs,
       bIndices,
       floorY,
       {
@@ -226,7 +313,7 @@ export function buildPlants(scene: Scene): void {
         bz: -11 + rng() * 15,
         h,
         w: 0.02 + rng() * 0.02,
-        N: 3,
+        N: 6,
         dir: rng() * Math.PI * 2,
         lean: h * (0.15 + rng() * 0.25),
         phase: rng() * Math.PI * 2,
@@ -244,6 +331,7 @@ export function buildPlants(scene: Scene): void {
   const cPhases: number[] = [];
   const cHeightFracs: number[] = [];
   const cSwayAmps: number[] = [];
+  const cUvs: number[] = [];
   const cIndices: number[] = [];
 
   for (let r = 0; r < 14; r++) {
@@ -256,7 +344,7 @@ export function buildPlants(scene: Scene): void {
       const dir = (j / leafCount) * Math.PI * 2 + rng() * 0.4;
       const h = 0.35 + rng() * 0.55; // 0.35..0.90 m
       const w = 0.10 + rng() * 0.08; // broad leaf
-      const N = 6;
+      const N = 14;
       const lean = h * (0.55 + rng() * 0.35); // strong outward arch
       const phase = rosettePhase + rng() * 0.4;
       const jitter = 0.85 + rng() * 0.3;
@@ -266,6 +354,7 @@ export function buildPlants(scene: Scene): void {
         cPhases,
         cHeightFracs,
         cSwayAmps,
+        cUvs,
         cIndices,
         floorY,
         {
@@ -285,35 +374,44 @@ export function buildPlants(scene: Scene): void {
     }
   }
 
+  // The sun in lighting.ts sits above the surface aimed at the tank centre.
+  // buildPlants runs before buildLighting, so rebuild that direction here.
+  const sunDir = new Vector3(-HALF.x * 0.15, -2 * HALF.y - 6, HALF.z * 0.2).normalize();
+  const plantTextures = makePlantTextures();
+
   // One shared material for all three layers.
-  const material = new MeshStandardMaterial({
+  const material = new MeshPhysicalMaterial({
     vertexColors: true,
     side: DoubleSide,
-    roughness: 0.75,
+    map: plantTextures.map,
+    normalMap: plantTextures.normalMap,
+    roughnessMap: plantTextures.roughnessMap,
+    roughness: 0.8,
     metalness: 0,
-    // Aquatic leaves glow faintly when light passes through them; a little
-    // emissive lift stops the shadow side going flat black. Cheap vs
-    // transmission, and compatible with the caustics totalEmissiveRadiance.
-    emissive: new Color(0x16300f),
-    emissiveIntensity: 0.5
+    // Waxy cuticle sheen, subtle enough to stay foliage-like. Translucency is
+    // not transmission; it comes from the directional backlight term instead.
+    sheen: 0.35,
+    sheenColor: new Color(0x2c4d33),
+    sheenRoughness: 0.85
   });
   registerCaustics(material);
   registerSway(material);
+  registerBacklight(material, sunDir, plantTextures.thicknessMap);
 
   // Hundreds of blades; shadow cost is not worth it.
-  const tall = new Mesh(buildLayerGeometry(aPositions, aColors, aPhases, aHeightFracs, aSwayAmps, aIndices), material);
+  const tall = new Mesh(buildLayerGeometry(aPositions, aColors, aPhases, aHeightFracs, aSwayAmps, aUvs, aIndices), material);
   tall.name = "plants-tall";
   tall.castShadow = false;
   tall.receiveShadow = true;
   scene.add(tall);
 
-  const carpet = new Mesh(buildLayerGeometry(bPositions, bColors, bPhases, bHeightFracs, bSwayAmps, bIndices), material);
+  const carpet = new Mesh(buildLayerGeometry(bPositions, bColors, bPhases, bHeightFracs, bSwayAmps, bUvs, bIndices), material);
   carpet.name = "plants-carpet";
   carpet.castShadow = false;
   carpet.receiveShadow = true;
   scene.add(carpet);
 
-  const broadleaf = new Mesh(buildLayerGeometry(cPositions, cColors, cPhases, cHeightFracs, cSwayAmps, cIndices), material);
+  const broadleaf = new Mesh(buildLayerGeometry(cPositions, cColors, cPhases, cHeightFracs, cSwayAmps, cUvs, cIndices), material);
   broadleaf.name = "plants-broadleaf";
   broadleaf.castShadow = false;
   broadleaf.receiveShadow = true;

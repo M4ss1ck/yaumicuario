@@ -1,11 +1,11 @@
 import { Clock, PerspectiveCamera, Scene, Vector3 } from "three";
 import { createRenderer } from "./renderer";
-import { loadQuality, saveQuality, type QualityName } from "./quality";
+import { effectivePixelRatio, loadQuality, saveQuality, type QualityName } from "./quality";
 import { buildTank } from "./scene/tank";
 import { buildGround } from "./scene/ground";
 import { buildRocks } from "./scene/rocks";
 import { buildLighting } from "./scene/lighting";
-import { buildWater, updateWater } from "./scene/water";
+import { buildWater, resizeWater, updateWater } from "./scene/water";
 import { Motes } from "./scene/godrays";
 import { updateCaustics } from "./scene/caustics";
 import { buildPlants, updatePlants } from "./scene/plants";
@@ -117,7 +117,7 @@ function boot(): void {
   void controls;
 
   function applyQuality(): void {
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap));
+    renderer.setPixelRatio(effectivePixelRatio(quality));
     renderer.shadowMap.enabled = quality.shadows;
     lighting.sun.castShadow = quality.shadows;
     if (quality.shadows) lighting.sun.shadow.mapSize.setScalar(quality.shadowMapSize);
@@ -145,6 +145,7 @@ function boot(): void {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     post.setSize(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
+    resizeWater(water);
   }
   window.addEventListener("resize", onResize);
 

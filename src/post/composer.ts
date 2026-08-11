@@ -1,5 +1,7 @@
 import {
+  HalfFloatType,
   Vector2,
+  WebGLRenderTarget,
   type PerspectiveCamera,
   type Scene,
   type WebGLRenderer
@@ -8,6 +10,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
+import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { createGodRaysPass } from "../scene/godrays";
@@ -64,6 +67,7 @@ export class PostPipeline {
   private bloom: UnrealBloomPass;
   private bokeh: BokehPass;
   private godrays: ShaderPass;
+  private ao: GTAOPass;
   private grading: ShaderPass;
   private sunScreen = new Vector2(0.5, 1.1);
 
@@ -76,11 +80,45 @@ export class PostPipeline {
     const w = window.innerWidth;
     const h = window.innerHeight;
 
-    this.composer = new EffectComposer(renderer);
+    // Explicit HalfFloat targets so the tier's MSAA sample count is applied to
+    // the composer framebuffers, not just the final canvas draw. Sized at CSS
+    // pixels here; EffectComposer scales them by the pixel ratio.
+    const renderTarget = new WebGLRenderTarget(w, h, {
+      type: HalfFloatType,
+      samples: quality.msaa
+    });
+
+    this.composer = new EffectComposer(renderer, renderTarget);
     this.composer.setPixelRatio(renderer.getPixelRatio());
     this.composer.setSize(w, h);
 
     this.composer.addPass(new RenderPass(scene, camera));
+
+    // Subtle contact occlusion: a restrained GTAO that only darkens surfaces
+    // that nearly touch (fish against the floor, rocks in the gravel) instead
+    // of crushing the whole frame. The composer sizes the pass targets to the
+    // effective resolution; only the enabled flag is tier-driven here.
+    this.ao = new GTAOPass(scene, camera, w, h);
+    this.ao.updateGtaoMaterial({
+      radius: 0.35,
+      distanceExponent: 2,
+      thickness: 0.4,
+      distanceFallOff: 1,
+      scale: 1,
+      samples: 16,
+      screenSpaceRadius: false
+    });
+    this.ao.updatePdMaterial({
+      radius: 4,
+      radiusExponent: 1,
+      rings: 2,
+      samples: 12,
+      lumaPhi: 10,
+      depthPhi: 2,
+      normalPhi: 3
+    });
+    this.ao.blendIntensity = 0.65;
+    this.composer.addPass(this.ao);
 
     // Focus is a fixed distance into the fish region, not the camera's
     // distance from the origin, so the near shoals stay sharp.
@@ -109,6 +147,15 @@ export class PostPipeline {
     this.bloom.enabled = q.bloom;
     this.bokeh.enabled = q.dof;
     this.godrays.enabled = q.godRays;
+    this.ao.enabled = q.ao;
+
+    // MSAA is baked into the GL framebuffer, so a changed sample count only
+    // takes effect once the composer targets are disposed and recreated. The
+    // callers resize after applyQuality, so the next render rebuilds them.
+    this.composer.renderTarget1.dispose();
+    this.composer.renderTarget2.dispose();
+    this.composer.renderTarget1.samples = q.msaa;
+    this.composer.renderTarget2.samples = q.msaa;
   }
 
   setSunScreenPos(x: number, y: number): void {
@@ -119,7 +166,6 @@ export class PostPipeline {
   setSize(w: number, h: number, pixelRatio: number): void {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(w, h);
-    this.bloom.setSize(w, h);
   }
 
   render(dt: number, time: number): void {

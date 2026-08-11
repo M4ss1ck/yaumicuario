@@ -1,62 +1,86 @@
-// Quality tiers. Each tier toggles the expensive effects and caps resolution.
+// Quality tiers. Each tier toggles the expensive effects, scales the render
+// resolution and caps the effective pixel ratio.
 // The user choice persists in localStorage (allowed: this is a normal web app).
 
 export type QualityName = "Low" | "Medium" | "High" | "Ultra";
 
 export interface QualitySettings {
   name: QualityName;
-  pixelRatioCap: number;
+  renderScale: number; // supersampling multiplier on top of the device DPR
+  maxPixelRatio: number; // cap for the effective pixel ratio
+  msaa: number; // multisample count for the composer targets
   shadows: boolean;
   shadowMapSize: number;
   bloom: boolean;
   dof: boolean;
   godRays: boolean;
+  ao: boolean;
   water: boolean;
   motes: number; // particle count
+}
+
+// Effective device pixel ratio: the CSS resolution times the tier's render
+// scale, capped so very high-DPR displays don't pay for pixels nobody can see.
+// Supersampling on DPR 1 displays comes from renderScale > 1, not from the
+// device's own pixel density.
+export function effectivePixelRatio(quality: QualitySettings): number {
+  return Math.min(window.devicePixelRatio * quality.renderScale, quality.maxPixelRatio);
 }
 
 const TIERS: Record<QualityName, QualitySettings> = {
   Low: {
     name: "Low",
-    pixelRatioCap: 1,
+    renderScale: 1,
+    maxPixelRatio: 1,
+    msaa: 0,
     shadows: false,
     shadowMapSize: 512,
     bloom: false,
     dof: false,
     godRays: false,
+    ao: false,
     water: true,
     motes: 0
   },
   Medium: {
     name: "Medium",
-    pixelRatioCap: 1.25,
+    renderScale: 1,
+    maxPixelRatio: 1.25,
+    msaa: 0,
     shadows: true,
     shadowMapSize: 1024,
     bloom: true,
     dof: false,
     godRays: true,
+    ao: false,
     water: true,
     motes: 250
   },
   High: {
     name: "High",
-    pixelRatioCap: 2,
+    renderScale: 1.25,
+    maxPixelRatio: 2,
+    msaa: 2,
     shadows: true,
     shadowMapSize: 2048,
     bloom: true,
     dof: true,
     godRays: true,
+    ao: true,
     water: true,
     motes: 600
   },
   Ultra: {
     name: "Ultra",
-    pixelRatioCap: 2,
+    renderScale: 2,
+    maxPixelRatio: 3,
+    msaa: 4,
     shadows: true,
     shadowMapSize: 4096,
     bloom: true,
     dof: true,
     godRays: true,
+    ao: true,
     water: true,
     motes: 1200
   }

@@ -4,7 +4,7 @@ import {
   SRGBColorSpace,
   WebGLRenderer
 } from "three";
-import type { QualitySettings } from "./quality";
+import { effectivePixelRatio, type QualitySettings } from "./quality";
 
 // WebGPU detection. The plan targets WebGPU first, but the rich post-processing
 // pipeline (EffectComposer, bloom, DOF, god rays) is the proven WebGL2 path and
@@ -30,7 +30,7 @@ export function createRenderer(quality: QualitySettings): WebGLRenderer {
   renderer.shadowMap.enabled = quality.shadows;
   renderer.shadowMap.type = PCFSoftShadowMap;
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap));
+  renderer.setPixelRatio(effectivePixelRatio(quality));
   renderer.setSize(window.innerWidth, window.innerHeight);
 
   if (isWebGPUAvailable()) {
