@@ -13,10 +13,14 @@ import { updateWiggle } from "./fish/wiggle";
 import { FishManager } from "./fish/FishManager";
 import { PostPipeline } from "./post/composer";
 import { Controls } from "./ui/controls";
+import { revealLoadingWordmark } from "./ui/loadingWordmark";
 import { loadingManager } from "./utils/loaders";
 
 const app = document.getElementById("app")!;
 const loadingEl = document.getElementById("loading")!;
+const loadingWordmarkEl = document.getElementById("loading-wordmark") as HTMLCanvasElement;
+const loadingProgressEl = document.getElementById("loading-progress")!;
+const wordmarkRevealed = revealLoadingWordmark(loadingWordmarkEl);
 
 // Surface any failure instead of hanging on "Loading…" forever.
 function showFatal(msg: string): void {
@@ -80,7 +84,7 @@ function boot(): void {
   // Show load progress so a slow/failed asset is distinguishable from a crash.
   loadingManager.onProgress = (_url, loaded, total) => {
     if (!loadingEl.classList.contains("hidden")) {
-      loadingEl.textContent = `Loading aquarium… (${loaded}/${total})`;
+      loadingProgressEl.textContent = `Loading aquarium… (${loaded}/${total})`;
     }
   };
 
@@ -183,6 +187,7 @@ function boot(): void {
   // Load fish, then start the loop.
   fishManager
     .load(scene)
+    .then(() => wordmarkRevealed)
     .then(() => {
       loadingEl.classList.add("hidden");
       loop();
