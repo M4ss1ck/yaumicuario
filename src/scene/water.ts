@@ -50,11 +50,11 @@ const WaterShader: WaterShaderDef = {
     uF0: { value: 0.02 }, // water reflectance at normal incidence
     uEta: { value: 1.0 / 1.333 }, // air-to-water index ratio
     uAbsorption: { value: 0.32 },
-    uNormalStrength: { value: 0.75 },
+    uNormalStrength: { value: 0.55 },
     uScale: { value: new Vector2(2.0, 4.6) },
     uDrift0: { value: new Vector2(0.035, -0.025) },
     uDrift1: { value: new Vector2(-0.045, 0.032) },
-    uDistortion: { value: 0.06 },
+    uDistortion: { value: 0.035 },
     uGlintPower: { value: 220.0 },
     uGlintGain: { value: 0.9 },
     uSunColor: { value: new Color(0xfff2d8) }
@@ -155,7 +155,12 @@ const WaterShader: WaterShaderDef = {
       // Blend the actual render-target colors with fresnel, then absorb toward
       // the blue-green character. Mixing tints instead of multiplying, so the
       // sampled scene is never crushed toward black.
-      vec3 scene = mix(refractColor.rgb, reflectColor.rgb, reflectance);
+      // The tank has no modeled above-water environment, so a dominant mirror
+      // capture turns reflected floor and rock geometry into dark floating
+      // shapes. Keep the live reflection as a restrained surface cue while the
+      // refraction map supplies most of the visible detail.
+      float reflectionWeight = reflectance * 0.18;
+      vec3 scene = mix(refractColor.rgb, reflectColor.rgb, reflectionWeight);
       float absorb = uAbsorption * (0.5 + 0.5 * reflectance);
       vec3 c = mix(scene, color, absorb);
 
@@ -290,6 +295,9 @@ class WaterSurface extends Mesh {
 
 export function buildWater(scene: Scene, sunPosition: Vector3): Mesh {
   const normalMaps = makeWaterNormalTextures();
+  // Keep the full 0.045 m wave displacement below the tank's dark top face.
+  // Intersections at the old 0.02 m clearance appeared as broad oval shadows.
+  const surfaceY = SURFACE_Y - 0.06;
 
   // Capture targets follow the window and device DPR, capped at 1024 on each
   // axis independently. Reflector and Refractor default to 4 multisamples.
@@ -310,11 +318,11 @@ export function buildWater(scene: Scene, sunPosition: Vector3): Mesh {
   // are skipped and there is nothing to capture; pointing it down keeps both
   // passes on the air side so they render for the below-surface camera.
   water.rotation.x = Math.PI / 2;
-  water.position.y = SURFACE_Y - 0.02;
+  water.position.y = surfaceY;
   water.name = "water";
 
   // Direction from the surface centre toward the sun's world position.
-  const surfaceCentre = new Vector3(0, SURFACE_Y - 0.02, 0);
+  const surfaceCentre = new Vector3(0, surfaceY, 0);
   (water.material.uniforms.uSunDir.value as Vector3)
     .copy(sunPosition)
     .sub(surfaceCentre)

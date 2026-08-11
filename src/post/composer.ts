@@ -132,7 +132,7 @@ export class PostPipeline {
     this.godrays = createGodRaysPass();
     this.composer.addPass(this.godrays);
 
-    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.55, 0.4, 0.82);
+    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.4, 0.35, 0.92);
     this.composer.addPass(this.bloom);
 
     this.grading = new ShaderPass(GradingShader);

@@ -28,7 +28,7 @@ export function buildLighting(
   const pmrem = new PMREMGenerator(renderer);
   const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envTex;
-  scene.environmentIntensity = 0.9;
+  scene.environmentIntensity = 0.75;
 
   // Blue-green exponential fog gives underwater depth and absorption, light
   // enough that the bright planted tank stays clear while the far walls dissolve.
@@ -38,10 +38,10 @@ export function buildLighting(
   // background.
   scene.background = new Color(fogColor);
 
-  const hemi = new HemisphereLight(0x9fd8e6, 0x2a4a40, 0.7);
+  const hemi = new HemisphereLight(0x9fd8e6, 0x2a4a40, 0.55);
   scene.add(hemi);
 
-  const sun = new DirectionalLight(0xfff2d8, 3.0);
+  const sun = new DirectionalLight(0xfff2d8, 2.35);
   const sunWorldPos = new Vector3(HALF.x * 0.15, SURFACE_Y + 6, -HALF.z * 0.2);
   sun.position.copy(sunWorldPos);
   sun.target.position.set(0, -HALF.y, 0);

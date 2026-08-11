@@ -17,11 +17,11 @@ const GodRaysShader = {
   uniforms: {
     tDiffuse: { value: null },
     uLightPos: { value: new Vector2(0.5, 1.1) },
-    uExposure: { value: 0.25 },
+    uExposure: { value: 0.18 },
     uDecay: { value: 0.95 },
     uDensity: { value: 0.7 },
-    uWeight: { value: 0.5 },
-    uThreshold: { value: 0.55 }
+    uWeight: { value: 0.44 },
+    uThreshold: { value: 0.64 }
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;

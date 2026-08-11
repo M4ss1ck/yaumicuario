@@ -45,7 +45,9 @@ const FRAG_APPLY = /* glsl */ `
     float c = pow(clamp(web * 1.4, 0.0, 1.0), 2.0);
     // Strongest on the floor (deep), fading toward the surface.
     float depthFade = smoothstep(${(HALF.y * 0.75).toFixed(2)}, ${(-HALF.y).toFixed(2)}, vWorldPosCaustic.y);
-    vec3 causticColor = vec3(0.45, 0.8, 0.78) * c * depthFade * 1.1;
+    // Tint the reflected light by the receiving material instead of adding the
+    // same cyan-white emissive value to every fish, rock and leaf.
+    vec3 causticColor = diffuseColor.rgb * vec3(0.32, 0.55, 0.50) * c * depthFade * 0.75;
     totalEmissiveRadiance += causticColor;
   }
 `;

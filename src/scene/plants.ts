@@ -200,7 +200,7 @@ const BACKLIGHT_APPLY = /* glsl */ `
     plantFacing *= plantFacing;
     float plantThick = texture2D(uPlantThickness, vPlantUv).r;
     vec3 plantTint = vec3(1.0, 0.95, 0.84); // warm sun, matches the scene light
-    outgoingLight += plantTint * diffuseColor.rgb * plantThick * plantFacing * 0.4;
+    outgoingLight += plantTint * diffuseColor.rgb * plantThick * plantFacing * 0.32;
   }
 `;
 
