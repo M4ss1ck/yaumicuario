@@ -6,7 +6,7 @@ import { buildGround } from "./scene/ground";
 import { buildRocks } from "./scene/rocks";
 import { buildLighting } from "./scene/lighting";
 import { buildWater, resizeWater, updateWater } from "./scene/water";
-import { buildLightBeams, Motes, updateLightBeams } from "./scene/godrays";
+import { Motes } from "./scene/godrays";
 import { updateCaustics } from "./scene/caustics";
 import { buildPlants, updatePlants } from "./scene/plants";
 import { updateWiggle } from "./fish/wiggle";
@@ -105,7 +105,6 @@ function boot(): void {
   buildPlants(scene);
   const lighting = buildLighting(scene, renderer, quality);
   const water = buildWater(scene, lighting.sun.position);
-  buildLightBeams(scene);
   let motes = new Motes(scene, quality.motes);
 
   const post = new PostPipeline(renderer, scene, camera, quality);
@@ -180,7 +179,6 @@ function boot(): void {
     updateCaustics(elapsed);
     updatePlants(elapsed);
     updateWiggle(elapsed);
-    updateLightBeams(elapsed);
     motes.update(dt);
     updateSunScreen();
 

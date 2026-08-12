@@ -398,11 +398,11 @@ export function buildPlants(scene: Scene): void {
   registerSway(material);
   registerBacklight(material, sunDir, plantTextures.thicknessMap);
 
-  // The merged tall and broadleaf layers add only two shadow draw calls and
-  // give the direct sun recognizable plant silhouettes on the substrate.
+  // Hundreds of blades stay out of the large High/Ultra shadow maps. Fish and
+  // rocks still cast onto the substrate without the heavy foliage shadow pass.
   const tall = new Mesh(buildLayerGeometry(aPositions, aColors, aPhases, aHeightFracs, aSwayAmps, aUvs, aIndices), material);
   tall.name = "plants-tall";
-  tall.castShadow = true;
+  tall.castShadow = false;
   tall.receiveShadow = true;
   scene.add(tall);
 
@@ -414,7 +414,7 @@ export function buildPlants(scene: Scene): void {
 
   const broadleaf = new Mesh(buildLayerGeometry(cPositions, cColors, cPhases, cHeightFracs, cSwayAmps, cUvs, cIndices), material);
   broadleaf.name = "plants-broadleaf";
-  broadleaf.castShadow = true;
+  broadleaf.castShadow = false;
   broadleaf.receiveShadow = true;
   scene.add(broadleaf);
 }
