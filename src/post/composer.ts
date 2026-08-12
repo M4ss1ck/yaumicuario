@@ -1,5 +1,6 @@
 import {
   HalfFloatType,
+  type Object3D,
   Vector2,
   WebGLRenderTarget,
   type PerspectiveCamera,
@@ -15,6 +16,36 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { createGodRaysPass } from "../scene/godrays";
 import type { QualitySettings } from "../quality";
+
+// GTAO renders the scene with an opaque normal override. Transparent effect
+// cards must be hidden for that pass or they become rectangular AO occluders.
+class EffectSafeGTAOPass extends GTAOPass {
+  constructor(
+    scene: Scene,
+    camera: PerspectiveCamera,
+    width: number,
+    height: number,
+    private readonly excluded: Object3D | undefined
+  ) {
+    super(scene, camera, width, height);
+  }
+
+  override render(
+    renderer: WebGLRenderer,
+    writeBuffer: WebGLRenderTarget,
+    readBuffer: WebGLRenderTarget,
+    deltaTime: number,
+    maskActive: boolean
+  ): void {
+    const wasVisible = this.excluded?.visible;
+    if (this.excluded) this.excluded.visible = false;
+    try {
+      super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+    } finally {
+      if (this.excluded && wasVisible !== undefined) this.excluded.visible = wasVisible;
+    }
+  }
+}
 
 // Cinematic color grade: blue-green tint, vignette and a faint film grain.
 const GradingShader = {
@@ -98,7 +129,13 @@ export class PostPipeline {
     // that nearly touch (fish against the floor, rocks in the gravel) instead
     // of crushing the whole frame. The composer sizes the pass targets to the
     // effective resolution; only the enabled flag is tier-driven here.
-    this.ao = new GTAOPass(scene, camera, w, h);
+    this.ao = new EffectSafeGTAOPass(
+      scene,
+      camera,
+      w,
+      h,
+      scene.getObjectByName("light-beams")
+    );
     this.ao.updateGtaoMaterial({
       radius: 0.35,
       distanceExponent: 2,

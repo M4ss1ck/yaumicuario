@@ -25,7 +25,7 @@ export function createRenderer(quality: QualitySettings): WebGLRenderer {
   renderer.outputColorSpace = SRGBColorSpace;
   // Tone mapping is applied by the composer's OutputPass at the end of the chain.
   renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.16;
 
   renderer.shadowMap.enabled = quality.shadows;
   renderer.shadowMap.type = PCFSoftShadowMap;

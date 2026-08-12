@@ -398,10 +398,11 @@ export function buildPlants(scene: Scene): void {
   registerSway(material);
   registerBacklight(material, sunDir, plantTextures.thicknessMap);
 
-  // Hundreds of blades; shadow cost is not worth it.
+  // The merged tall and broadleaf layers add only two shadow draw calls and
+  // give the direct sun recognizable plant silhouettes on the substrate.
   const tall = new Mesh(buildLayerGeometry(aPositions, aColors, aPhases, aHeightFracs, aSwayAmps, aUvs, aIndices), material);
   tall.name = "plants-tall";
-  tall.castShadow = false;
+  tall.castShadow = true;
   tall.receiveShadow = true;
   scene.add(tall);
 
@@ -413,7 +414,7 @@ export function buildPlants(scene: Scene): void {
 
   const broadleaf = new Mesh(buildLayerGeometry(cPositions, cColors, cPhases, cHeightFracs, cSwayAmps, cUvs, cIndices), material);
   broadleaf.name = "plants-broadleaf";
-  broadleaf.castShadow = false;
+  broadleaf.castShadow = true;
   broadleaf.receiveShadow = true;
   scene.add(broadleaf);
 }

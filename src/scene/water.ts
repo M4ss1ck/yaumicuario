@@ -253,12 +253,18 @@ class WaterSurface extends Mesh {
     this.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
       if (scene.overrideMaterial) return;
       this.updateTextureMatrix(camera);
+      // Transparent beam cards belong in the main view, not in the planar
+      // captures where their edges become dark bars on the water surface.
+      const lightBeams = scene.getObjectByName("light-beams");
+      const beamsWereVisible = lightBeams?.visible;
+      if (lightBeams) lightBeams.visible = false;
       this.visible = false;
       this.reflector.matrixWorld.copy(this.matrixWorld);
       this.refractor.matrixWorld.copy(this.matrixWorld);
       this.reflector.onBeforeRender(renderer, scene, camera, geometry, material, group);
       this.refractor.onBeforeRender(renderer, scene, camera, geometry, material, group);
       this.visible = true;
+      if (lightBeams && beamsWereVisible !== undefined) lightBeams.visible = beamsWereVisible;
     };
   }
 
