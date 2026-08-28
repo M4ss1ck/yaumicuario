@@ -221,14 +221,35 @@ function boot(): void {
   window.addEventListener("blur", () => (focused = false));
   window.addEventListener("focus", () => (focused = true));
 
+  // Keep the screen awake: this is a screensaver, and a phone left showing it
+  // would otherwise dim and lock within a minute. The lock is dropped by the
+  // browser whenever the page is hidden, so it has to be re-taken on return.
+  let wakeLock: WakeLockSentinel | null = null;
+  async function acquireWakeLock(): Promise<void> {
+    const nav = navigator as Navigator & { wakeLock?: WakeLock };
+    if (!nav.wakeLock) return; // not supported, or insecure context
+    try {
+      wakeLock = await nav.wakeLock.request("screen");
+    } catch {
+      /* denied, or the document was not visible; not worth surfacing */
+    }
+  }
+  void acquireWakeLock();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && wakeLock === null) void acquireWakeLock();
+  });
+
   let lastFrame = 0;
   function loop(): void {
     if (!running) return;
     requestAnimationFrame(loop);
 
     const now = performance.now();
-    // Throttle to ~15 fps when unfocused to save power during long sessions.
-    const minInterval = focused ? 0 : 1000 / 15;
+    // Capped at 30 fps. Drifting fish read the same as at 60, and this is meant
+    // to be left running on a phone, where the second half of those frames is
+    // spent on battery and heat rather than on anything the eye resolves.
+    // Still throttled harder when the window is not focused.
+    const minInterval = focused ? 1000 / 30 : 1000 / 15;
     if (now - lastFrame < minInterval) return;
     lastFrame = now;
 

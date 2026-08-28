@@ -55,7 +55,10 @@ export class Controls {
     document.body.appendChild(creditsDialog);
     document.body.appendChild(this.panel);
 
+    // Touch devices have no hover and no keyboard, so without this the panel
+    // fades after a few seconds and there is no way to bring it back.
     window.addEventListener("mousemove", () => this.wake());
+    window.addEventListener("pointerdown", () => this.wake());
     window.addEventListener("keydown", (e) => {
       this.wake();
       if (e.key === "f" || e.key === "F") this.toggleFullscreen();
@@ -137,6 +140,10 @@ function createCreditsDialog(): HTMLDialogElement {
   return dialog;
 }
 
+// Coarse pointers get taller controls: a 30px target is hard to hit reliably
+// with a thumb, and the recipient will be using this on a phone.
+const COARSE_POINTER = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+
 function styleButton(el: HTMLElement): void {
   el.style.cssText = [
     "background:rgba(255,255,255,0.08)",
@@ -144,8 +151,8 @@ function styleButton(el: HTMLElement): void {
     "border:1px solid rgba(255,255,255,0.15)",
     "border-radius:7px",
     "box-sizing:border-box",
-    "height:30px",
-    "padding:6px 10px",
+    `height:${COARSE_POINTER ? 44 : 30}px`,
+    `padding:${COARSE_POINTER ? "10px 14px" : "6px 10px"}`,
     "font:300 13px/1 system-ui,sans-serif",
     "cursor:pointer",
     "outline:none"
