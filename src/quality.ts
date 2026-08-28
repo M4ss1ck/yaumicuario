@@ -93,12 +93,15 @@ const TIERS: Record<QualityName, QualitySettings> = {
 
 const STORAGE_KEY = "aquarium.quality";
 
+export function isMobile(): boolean {
+  return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+}
+
 // Pick a sensible default from the hardware before the user overrides it.
 function autoDetect(): QualityName {
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
   const cores = navigator.hardwareConcurrency ?? 4;
-  const mobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  if (mobile) return "Low";
+  if (isMobile()) return "Low";
   if (cores >= 8 && mem >= 8) return "High";
   if (cores >= 4) return "Medium";
   return "Low";

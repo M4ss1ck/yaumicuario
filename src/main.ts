@@ -1,6 +1,6 @@
 import { Clock, MathUtils, PerspectiveCamera, Scene, Vector3 } from "three";
 import { createRenderer } from "./renderer";
-import { effectivePixelRatio, loadQuality, saveQuality, type QualityName } from "./quality";
+import { effectivePixelRatio, isMobile, loadQuality, saveQuality, type QualityName } from "./quality";
 import { buildTank } from "./scene/tank";
 import { buildGround } from "./scene/ground";
 import { buildRocks } from "./scene/rocks";
@@ -31,6 +31,13 @@ import { registerSW } from "./pwa";
 // water above the tank. Instead the narrow slice is aimed lower, so the plant
 // bed anchors the bottom of the frame instead of fog filling the top, with the
 // camera pulled back and widened so no one fish dominates.
+// Frame budget. On a phone this is a battery decision: drifting fish read the
+// same at 30 fps as at 60, and this is meant to be left running. A desktop has
+// no such constraint, and its display is often well above 60 Hz, where 30 fps
+// reads as steppy rather than calm.
+const TARGET_FPS = isMobile() ? 30 : 60;
+const REFRESH_SLACK_MS = 4;
+
 const BASE_FOV = 45;
 const REFERENCE_ASPECT = 16 / 9;
 const NARROW_ASPECT = 0.5;
@@ -247,12 +254,15 @@ function boot(): void {
     requestAnimationFrame(loop);
 
     const now = performance.now();
-    // Capped at 30 fps. Drifting fish read the same as at 60, and this is meant
-    // to be left running on a phone, where the second half of those frames is
-    // spent on battery and heat rather than on anything the eye resolves.
     // Still throttled harder when the window is not focused.
-    const minInterval = focused ? 1000 / 30 : 1000 / 15;
-    if (now - lastFrame < minInterval) return;
+    const minInterval = focused ? 1000 / TARGET_FPS : 1000 / 15;
+    // The slack matters. rAF only fires on display refreshes, so comparing
+    // against the bare interval means the gate can only pass on whole refresh
+    // multiples: a 33.3 ms target on a 60 Hz screen misses its own 33.3 ms tick
+    // by a rounding error and waits for the next one, which delivered 22.8 fps
+    // in an alternating 33/50 ms beat that reads as judder. Half a refresh of
+    // tolerance snaps the gate to the nearest tick instead.
+    if (now - lastFrame < minInterval - REFRESH_SLACK_MS) return;
     lastFrame = now;
 
     const dt = Math.min(clock.getDelta(), 0.05);
