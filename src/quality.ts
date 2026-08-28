@@ -15,7 +15,8 @@ export interface QualitySettings {
   dof: boolean;
   godRays: boolean;
   ao: boolean;
-  water: boolean;
+  water: boolean; // planar reflection/refraction captures on the surface
+  waterCaptureSize: number; // per-axis cap for the two capture targets
   motes: number; // particle count
 }
 
@@ -39,7 +40,8 @@ const TIERS: Record<QualityName, QualitySettings> = {
     dof: false,
     godRays: false,
     ao: false,
-    water: true,
+    water: false,
+    waterCaptureSize: 0,
     motes: 0
   },
   Medium: {
@@ -54,6 +56,7 @@ const TIERS: Record<QualityName, QualitySettings> = {
     godRays: true,
     ao: false,
     water: true,
+    waterCaptureSize: 512,
     motes: 250
   },
   High: {
@@ -68,6 +71,7 @@ const TIERS: Record<QualityName, QualitySettings> = {
     godRays: true,
     ao: true,
     water: true,
+    waterCaptureSize: 768,
     motes: 600
   },
   Ultra: {
@@ -82,6 +86,7 @@ const TIERS: Record<QualityName, QualitySettings> = {
     godRays: true,
     ao: true,
     water: true,
+    waterCaptureSize: 1024,
     motes: 1200
   }
 };

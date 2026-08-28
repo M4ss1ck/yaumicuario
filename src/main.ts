@@ -5,7 +5,13 @@ import { buildTank } from "./scene/tank";
 import { buildGround } from "./scene/ground";
 import { buildRocks } from "./scene/rocks";
 import { buildLighting } from "./scene/lighting";
-import { buildWater, resizeWater, updateWater } from "./scene/water";
+import {
+  buildWater,
+  disposeWater,
+  resizeWater,
+  updateWater,
+  waterHasCaptures
+} from "./scene/water";
 import { Motes } from "./scene/godrays";
 import { updateCaustics } from "./scene/caustics";
 import { buildPlants, updatePlants } from "./scene/plants";
@@ -104,7 +110,7 @@ function boot(): void {
   buildRocks(scene);
   buildPlants(scene);
   const lighting = buildLighting(scene, renderer, quality);
-  const water = buildWater(scene, lighting.sun.position);
+  let water = buildWater(scene, lighting.sun.position, quality);
   let motes = new Motes(scene, quality.motes);
 
   const post = new PostPipeline(renderer, scene, camera, quality);
@@ -126,6 +132,14 @@ function boot(): void {
     // Rebuild motes to match the new particle budget.
     motes.dispose();
     motes = new Motes(scene, quality.motes);
+    // The surface shader variant and its capture targets are fixed at
+    // construction, so a tier that flips quality.water needs a new mesh.
+    if (waterHasCaptures(water) !== quality.water) {
+      disposeWater(water);
+      water = buildWater(scene, lighting.sun.position, quality);
+    } else {
+      resizeWater(water, quality);
+    }
   }
 
   // Project the sun position to screen space for the god-ray pass.
@@ -145,7 +159,7 @@ function boot(): void {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     post.setSize(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
-    resizeWater(water);
+    resizeWater(water, quality);
   }
   window.addEventListener("resize", onResize);
 

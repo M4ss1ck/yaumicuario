@@ -18,6 +18,7 @@ import { Refractor } from "three/examples/jsm/objects/Refractor.js";
 import { TANK } from "./dimensions";
 import { SURFACE_Y } from "./tank";
 import { makeWaterNormalTextures } from "../utils/textures";
+import type { QualitySettings } from "../quality";
 
 // Real planar reflection/refraction for the surface, seen from below. The
 // surface renders the scene twice into half-float targets (a reflected and a
@@ -34,13 +35,22 @@ interface WaterShaderDef {
   fragmentShader: string;
 }
 
-const WaterShader: WaterShaderDef = {
-  name: "UnderwaterWaterShader",
+// Two variants. With captures, the surface blends the reflected and refracted
+// scene renders. Without them (Low tier), there is nothing to sample, so the
+// same fresnel/absorption/glint math runs against a flat fallback color. The
+// tank models no above-water environment and the surface sits ~74% dissolved in
+// fog at the distance the camera sees it, so both captures are close to a
+// uniform fog color in practice and the cheap path stays visually close.
+function makeWaterShader(captures: boolean): WaterShaderDef {
+  return {
+  name: captures ? "UnderwaterWaterShader" : "UnderwaterWaterShaderNoCaptures",
   uniforms: {
     color: { value: null }, // absorption tint, set from options.color
     reflectivity: { value: 0 },
-    tReflectionMap: { value: null },
-    tRefractionMap: { value: null },
+    ...(captures
+      ? { tReflectionMap: { value: null }, tRefractionMap: { value: null } }
+      : {}),
+    uFallbackColor: { value: new Color(0x0e3b40) }, // matches the scene fog
     tNormalMap0: { value: null },
     tNormalMap1: { value: null },
     textureMatrix: { value: null },
@@ -97,8 +107,7 @@ const WaterShader: WaterShaderDef = {
     #include <common>
     #include <fog_pars_fragment>
 
-    uniform sampler2D tReflectionMap;
-    uniform sampler2D tRefractionMap;
+    ${captures ? "uniform sampler2D tReflectionMap;\n    uniform sampler2D tRefractionMap;" : "uniform vec3 uFallbackColor;"}
     uniform sampler2D tNormalMap0;
     uniform sampler2D tNormalMap1;
 
@@ -144,6 +153,7 @@ const WaterShader: WaterShaderDef = {
       float theta = max(dot(-viewDir, N), 0.0);
       float reflectance = uF0 + (1.0 - uF0) * pow(1.0 - theta, 5.0);
 
+      ${captures ? `
       // Projective coordinates into both render targets, distorted by the
       // combined normal.
       vec3 coord = vCoord.xyz / vCoord.w;
@@ -151,6 +161,12 @@ const WaterShader: WaterShaderDef = {
 
       vec4 reflectColor = texture2D(tReflectionMap, vec2(1.0 - uv.x, uv.y));
       vec4 refractColor = texture2D(tRefractionMap, uv);
+      ` : `
+      // No capture targets on this tier. Both terms collapse to the fog color,
+      // which is what the captures largely resolve to at this viewing distance.
+      vec4 reflectColor = vec4(uFallbackColor, 1.0);
+      vec4 refractColor = vec4(uFallbackColor, 1.0);
+      `}
 
       // Blend the actual render-target colors with fresnel, then absorb toward
       // the blue-green character. Mixing tints instead of multiplying, so the
@@ -175,7 +191,8 @@ const WaterShader: WaterShaderDef = {
       #include <fog_fragment>
     }
   `
-};
+  };
+}
 
 // Resize-safe replacement for the Water2 wrapper. Water2 keeps its Reflector
 // and Refractor private, so its capture targets are fixed at the constructor
@@ -183,8 +200,12 @@ const WaterShader: WaterShaderDef = {
 // of Water2's orchestration this scene uses, with direct references to both
 // capture render targets so their size can be updated on resize.
 class WaterSurface extends Mesh {
-  readonly reflector: Reflector;
-  readonly refractor: Refractor;
+  // Null on tiers with quality.water off: the capture targets are the most
+  // expensive thing the surface does (two extra full scene renders per frame),
+  // so that tier skips allocating them at all rather than rendering into
+  // targets it never samples.
+  readonly reflector: Reflector | null = null;
+  readonly refractor: Refractor | null = null;
   override material: ShaderMaterial;
 
   private readonly normalMap0: CanvasTexture;
@@ -198,6 +219,7 @@ class WaterSurface extends Mesh {
     shader: WaterShaderDef,
     options: {
       color: number;
+      captures: boolean;
       textureWidth: number;
       textureHeight: number;
       clipBias?: number;
@@ -213,18 +235,20 @@ class WaterSurface extends Mesh {
     this.normalMap1 = options.normalMap1;
 
     const clipBias = options.clipBias ?? 0;
-    this.reflector = new Reflector(geometry, {
-      textureWidth: options.textureWidth,
-      textureHeight: options.textureHeight,
-      clipBias
-    });
-    this.refractor = new Refractor(geometry, {
-      textureWidth: options.textureWidth,
-      textureHeight: options.textureHeight,
-      clipBias
-    });
-    this.reflector.matrixAutoUpdate = false;
-    this.refractor.matrixAutoUpdate = false;
+    if (options.captures) {
+      this.reflector = new Reflector(geometry, {
+        textureWidth: options.textureWidth,
+        textureHeight: options.textureHeight,
+        clipBias
+      });
+      this.refractor = new Refractor(geometry, {
+        textureWidth: options.textureWidth,
+        textureHeight: options.textureHeight,
+        clipBias
+      });
+      this.reflector.matrixAutoUpdate = false;
+      this.refractor.matrixAutoUpdate = false;
+    }
 
     this.material = new ShaderMaterial({
       name: shader.name,
@@ -237,8 +261,10 @@ class WaterSurface extends Mesh {
 
     this.material.uniforms.color.value = new Color(options.color);
     this.material.uniforms.reflectivity.value = 0.02;
-    this.material.uniforms.tReflectionMap.value = this.reflector.getRenderTarget().texture;
-    this.material.uniforms.tRefractionMap.value = this.refractor.getRenderTarget().texture;
+    if (this.reflector && this.refractor) {
+      this.material.uniforms.tReflectionMap.value = this.reflector.getRenderTarget().texture;
+      this.material.uniforms.tRefractionMap.value = this.refractor.getRenderTarget().texture;
+    }
     this.material.uniforms.tNormalMap0.value = options.normalMap0;
     this.material.uniforms.tNormalMap1.value = options.normalMap1;
     this.material.uniforms.textureMatrix.value = this.textureMatrix;
@@ -251,6 +277,7 @@ class WaterSurface extends Mesh {
     // an override material is active (GTAO/DOF normal and depth passes) so the
     // captures never recurse into those renders.
     this.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
+      if (!this.reflector || !this.refractor) return;
       if (scene.overrideMaterial) return;
       this.updateTextureMatrix(camera);
       this.visible = false;
@@ -276,6 +303,7 @@ class WaterSurface extends Mesh {
   // change; the WebGLRenderTarget objects are kept, only their backing
   // resources are recreated.
   resizeTargets(width: number, height: number): void {
+    if (!this.reflector || !this.refractor) return;
     if (width === this.textureWidth && height === this.textureHeight) return;
     this.textureWidth = width;
     this.textureHeight = height;
@@ -284,8 +312,8 @@ class WaterSurface extends Mesh {
   }
 
   dispose(): void {
-    this.reflector.dispose();
-    this.refractor.dispose();
+    this.reflector?.dispose();
+    this.refractor?.dispose();
     this.normalMap0.dispose();
     this.normalMap1.dispose();
     this.material.dispose();
@@ -293,20 +321,22 @@ class WaterSurface extends Mesh {
   }
 }
 
-export function buildWater(scene: Scene, sunPosition: Vector3): Mesh {
+export function buildWater(
+  scene: Scene,
+  sunPosition: Vector3,
+  quality: QualitySettings
+): Mesh {
   const normalMaps = makeWaterNormalTextures();
   // Keep the full 0.045 m wave displacement below the tank's dark top face.
   // Intersections at the old 0.02 m clearance appeared as broad oval shadows.
   const surfaceY = SURFACE_Y - 0.06;
 
-  // Capture targets follow the window and device DPR, capped at 1024 on each
-  // axis independently. Reflector and Refractor default to 4 multisamples.
-  const dpr = window.devicePixelRatio || 1;
-  const textureWidth = Math.min(Math.floor(window.innerWidth * dpr), 1024);
-  const textureHeight = Math.min(Math.floor(window.innerHeight * dpr), 1024);
+  const { width: textureWidth, height: textureHeight } = captureSize(quality);
 
-  const water = new WaterSurface(new PlaneGeometry(TANK.width, TANK.depth, 128, 128), WaterShader, {
+  const geometry = new PlaneGeometry(TANK.width, TANK.depth, 128, 128);
+  const water = new WaterSurface(geometry, makeWaterShader(quality.water), {
     color: 0x1a5a66,
+    captures: quality.water,
     textureWidth,
     textureHeight,
     normalMap0: normalMaps.normalMap0,
@@ -332,13 +362,35 @@ export function buildWater(scene: Scene, sunPosition: Vector3): Mesh {
   return water;
 }
 
-// Recompute the capture dimensions from the current window and device DPR,
-// capped at 1024 per axis, resizing both targets only when they changed.
-export function resizeWater(water: Mesh): void {
+// Capture target dimensions: the window scaled by device DPR, capped per axis
+// by the tier's budget. The cap is what keeps a 3x-DPR phone from allocating
+// two full-resolution half-float targets for a surface that is mostly fog.
+function captureSize(quality: QualitySettings): { width: number; height: number } {
+  if (!quality.water) return { width: 0, height: 0 };
   const dpr = window.devicePixelRatio || 1;
-  const width = Math.min(Math.floor(window.innerWidth * dpr), 1024);
-  const height = Math.min(Math.floor(window.innerHeight * dpr), 1024);
+  const cap = quality.waterCaptureSize;
+  return {
+    width: Math.min(Math.floor(window.innerWidth * dpr), cap),
+    height: Math.min(Math.floor(window.innerHeight * dpr), cap)
+  };
+}
+
+// Resize both capture targets to the current window, only when they changed.
+export function resizeWater(water: Mesh, quality: QualitySettings): void {
+  const { width, height } = captureSize(quality);
   (water as WaterSurface).resizeTargets(width, height);
+}
+
+// Whether this water mesh was built with capture targets. A tier change that
+// flips quality.water needs a rebuild, because the shader variant and the
+// Reflector/Refractor allocation are both fixed at construction.
+export function waterHasCaptures(water: Mesh): boolean {
+  return (water as WaterSurface).reflector !== null;
+}
+
+export function disposeWater(water: Mesh): void {
+  water.parent?.remove(water);
+  (water as WaterSurface).dispose();
 }
 
 export function updateWater(water: Mesh, dt: number): void {
