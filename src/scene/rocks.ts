@@ -2,13 +2,14 @@ import {
   BufferAttribute,
   Color,
   IcosahedronGeometry,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Vector3,
   type BufferGeometry,
   type Scene
 } from "three";
-import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { HALF } from "./dimensions";
 import { registerCaustics } from "./caustics";
 import { mulberry32 } from "../utils/textures";
@@ -67,26 +68,27 @@ function makeRockGeometry(rng: () => number): BufferGeometry {
   return geo;
 }
 
-// Create a rock mesh, flattened and partly buried so it reads as sitting in
-// the sand rather than resting on top of it.
-function placeRock(
-  scene: Scene,
+// Bake one rock placement into world space, flattened and partly buried so it
+// reads as sitting in the sand rather than resting on top of it. The rocks
+// never move and all share one material, so every placement is baked into a
+// single merged geometry instead of 22 separate meshes, each of which was a
+// draw call in the main pass and another in the shadow pass.
+function placedRock(
   geometry: BufferGeometry,
-  material: MeshStandardMaterial,
   x: number,
   z: number,
   scaleX: number,
   scaleY: number,
   scaleZ: number,
   rotY: number
-): void {
-  const mesh = new Mesh(geometry, material);
-  mesh.scale.set(scaleX, scaleY, scaleZ);
-  mesh.rotation.y = rotY;
-  mesh.position.set(x, -HALF.y + scaleY * 0.58, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  scene.add(mesh);
+): BufferGeometry {
+  const placed = geometry.clone();
+  const m = new Matrix4()
+    .makeTranslation(x, -HALF.y + scaleY * 0.58, z)
+    .multiply(new Matrix4().makeRotationY(rotY))
+    .multiply(new Matrix4().makeScale(scaleX, scaleY, scaleZ));
+  placed.applyMatrix4(m);
+  return placed;
 }
 
 export function buildRocks(scene: Scene): void {
@@ -113,13 +115,14 @@ export function buildRocks(scene: Scene): void {
     [-5.9, -8.2, 1.2, 0.85, 1.15, 4.0],
     [5.6, -2.6, 1.05, 0.75, 1.0, 1.2]
   ];
+  const placed: BufferGeometry[] = [];
   heroes.forEach(([x, z, scaleX, scaleY, scaleZ, rotY], i) => {
-    placeRock(scene, geometries[i % geometries.length], material, x, z, scaleX, scaleY, scaleZ, rotY);
+    placed.push(placedRock(geometries[i % geometries.length], x, z, scaleX, scaleY, scaleZ, rotY));
   });
 
   // Eighteen scattered small stones, low enough that fish clear them.
-  let placed = 0;
-  while (placed < 18) {
+  let count = 0;
+  while (count < 18) {
     const x = -9 + rng() * 18;
     const z = -10 + rng() * 13.5;
     // Keep the near-centre foreground clear for the camera.
@@ -129,7 +132,19 @@ export function buildRocks(scene: Scene): void {
     const scaleY = s * 0.7;
     const scaleZ = s * (0.85 + rng() * 0.3);
     const rotY = rng() * Math.PI * 2;
-    placeRock(scene, geometries[placed % geometries.length], material, x, z, scaleX, scaleY, scaleZ, rotY);
-    placed++;
+    placed.push(
+      placedRock(geometries[count % geometries.length], x, z, scaleX, scaleY, scaleZ, rotY)
+    );
+    count++;
   }
+
+  const merged = mergeGeometries(placed, false);
+  for (const g of placed) g.dispose();
+  for (const g of geometries) g.dispose();
+
+  const rocks = new Mesh(merged, material);
+  rocks.name = "rocks";
+  rocks.castShadow = true;
+  rocks.receiveShadow = true;
+  scene.add(rocks);
 }

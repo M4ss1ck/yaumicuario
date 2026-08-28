@@ -49,6 +49,17 @@ const ROSTER: Species[] = [
 
 const FORWARD = new Vector3(0, 0, 1);
 
+// Skinned meshes deform outside the bounds baked into their geometry, so the
+// culler under-reports and fish vanish while still on screen. That is why
+// culling was previously disabled outright, at the cost of submitting every
+// fish in every pass. Inflating the bounding sphere once per species covers
+// every pose cheaply, and lets culling be turned back on.
+const SKINNED_BOUNDS_SLACK = 2.2;
+
+// Fish below this length do not cast shadows. A 7 cm tetra's shadow is not
+// legible at any distance the camera sees, and there are 34 of them.
+const SHADOW_MIN_LENGTH = 0.1;
+
 function axisVector(axis: Axis): Vector3 {
   return new Vector3(axis === "x" ? 1 : 0, axis === "y" ? 1 : 0, axis === "z" ? 1 : 0);
 }
@@ -133,6 +144,16 @@ export class FishManager {
     // Every clone is identical, so measure the species once.
     const posed = measurePosed(source);
 
+    // Geometry is shared across every clone of a species, so the culling bounds
+    // only need widening once, here on the source.
+    source.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+      if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+      const sphere = mesh.geometry.boundingSphere;
+      if (sphere) sphere.radius *= SKINNED_BOUNDS_SLACK;
+    });
+
     // Shoal mates start clustered and share one wander target, otherwise they
     // spawn too far apart to ever see each other and cohesion never engages.
     const b = this.bounds;
@@ -196,12 +217,10 @@ export class FishManager {
       });
     }
 
+    const castsShadow = species.length >= SHADOW_MIN_LENGTH;
     model.traverse((o) => {
       const mesh = o as Mesh;
-      if (mesh.isMesh) {
-        mesh.castShadow = true;
-        mesh.frustumCulled = false; // skinned bounds drift; avoid pop-out
-      }
+      if (mesh.isMesh) mesh.castShadow = castsShadow;
     });
 
     const agent = new Group();
