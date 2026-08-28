@@ -21,6 +21,7 @@ import { PostPipeline } from "./post/composer";
 import { Controls } from "./ui/controls";
 import { revealLoadingWordmark } from "./ui/loadingWordmark";
 import { initLoaders } from "./utils/loaders";
+import { registerSW } from "./pwa";
 
 // Camera framing. The composition is authored for a wide screen; a phone held
 // upright is about 0.45 aspect, where the horizontal field of view collapses to
@@ -137,6 +138,7 @@ if (location.protocol === "file:") {
 } else if (webglProblem()) {
   showFatal(WEBGL_HELP);
 } else {
+  registerSW();
   boot();
 }
 

@@ -6,7 +6,7 @@
   "scripts": {
     "gen:ascii": "node scripts/generate-ascii.mjs",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/build-sw.mjs",
     "preview": "vite preview",
     "capture": "node scripts/capture.mjs",
     "diff:captures": "node scripts/diff-captures.mjs"

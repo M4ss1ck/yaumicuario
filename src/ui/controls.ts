@@ -1,5 +1,7 @@
 import { QUALITY_NAMES, type QualityName } from "../quality";
 
+declare const __BUILD_ID__: string;
+
 // Minimal overlay: fullscreen toggle and quality selector. The panel and the
 // cursor both fade out after a few seconds of inactivity (screensaver feel).
 export class Controls {
@@ -51,7 +53,23 @@ export class Controls {
     const creditsDialog = createCreditsDialog();
     creditsBtn.onclick = () => creditsDialog.showModal();
 
-    this.panel.append(fsBtn, select, creditsBtn);
+    // Build id, so it can be read out over the phone when something needs
+    // diagnosing on a device that cannot be inspected directly. If the
+    // post-build patch ever fails, the raw placeholder shows here, which is
+    // itself the useful signal.
+    const version = document.createElement("span");
+    const bid: string = typeof __BUILD_ID__ !== "undefined" ? __BUILD_ID__ : "";
+    version.textContent = bid;
+    version.setAttribute("data-build-id", bid);
+    version.style.cssText = [
+      "margin-left:4px",
+      "opacity:0.45",
+      "font:300 10px/1 system-ui,sans-serif",
+      "letter-spacing:0.06em",
+      "color:#82aab4",
+      "user-select:text"
+    ].join(";");
+    this.panel.append(fsBtn, select, creditsBtn, version);
     document.body.appendChild(creditsDialog);
     document.body.appendChild(this.panel);
 
