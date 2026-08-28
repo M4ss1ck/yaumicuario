@@ -20,6 +20,17 @@ npm run build    # type-checks, then outputs a static site to dist/
 npm run preview  # serve the production build locally
 ```
 
+## Visual regression captures
+
+```bash
+npm run capture -- --out captures/baseline
+npm run diff:captures captures/baseline captures/after
+```
+
+Renders the production build in headless Chrome with randomness, the clock and
+the animation frame loop all under harness control, then compares PNG frames.
+Requires Chrome on `PATH` or `CHROME_PATH`. See `AGENTS.md` for details.
+
 ## Deploy (Cloudflare Pages)
 
 This is a static site. On Cloudflare Pages:

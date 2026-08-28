@@ -29,5 +29,22 @@ for build/run/deploy.
 
 ## Verify
 
-`npm run build` type-checks and bundles. There are no automated tests; visual
-behavior was checked by rendering the production build in headless Chrome.
+`npm run build` type-checks and bundles.
+
+Visual regressions are caught by the capture harness, which renders the
+production build in headless Chrome under a determinism shim
+(`scripts/capture-shim.js`: seeded `Math.random`, virtual clock, pumped
+`requestAnimationFrame`) and diffs PNG frames:
+
+```bash
+npm run build
+npm run capture -- --out captures/baseline      # before a change
+npm run capture -- --out captures/after         # after it
+npm run diff:captures captures/baseline captures/after
+```
+
+Presets are `phone-portrait`, `phone-landscape` and `desktop`; the phone presets
+send a Samsung user agent so `autoDetect()` in `quality.ts` takes the Low tier,
+which is what the target device runs. Captures are not bit-exact: the measured
+noise floor is under 0.025% of pixels and the diff threshold defaults to 0.15%.
+See the header of `scripts/diff-captures.mjs` before changing that number.
