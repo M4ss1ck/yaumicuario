@@ -179,6 +179,13 @@ function boot(): void {
   });
   void controls;
 
+  // The shadow map is rendered by every renderer.render() call, and a frame
+  // makes several: the main pass plus the depth and normal prepasses that DOF
+  // and AO each run. Those prepasses replace every material with a depth or
+  // normal override, so the shadow map they rebuild is never sampled. Driving
+  // the update by hand renders it once per frame instead of three times.
+  renderer.shadowMap.autoUpdate = false;
+
   function applyQuality(): void {
     renderer.setPixelRatio(effectivePixelRatio(quality));
     renderer.shadowMap.enabled = quality.shadows;
@@ -268,6 +275,9 @@ function boot(): void {
     const dt = Math.min(clock.getDelta(), 0.05);
     elapsed += dt;
 
+    // Fish and plants moved, so the one shadow render this frame is due.
+    renderer.shadowMap.needsUpdate = quality.shadows;
+
     fishManager.update(dt, camera.position);
     updateWater(water, dt);
     updateCaustics(elapsed);
@@ -296,7 +306,12 @@ function boot(): void {
         ? `Filling the tank… ${pct}%`
         : `Filling the tank… ${(loadedBytes / 1048576).toFixed(1)} MB`;
     })
-    .then(() => {
+    .then(async () => {
+      // Compile every program the fish need before the scene is declared
+      // ready. Otherwise each new material and pass combination compiles the
+      // first time it happens to be drawn, and each of those stalls a frame by
+      // 10-30 ms somewhere in the first minute of watching.
+      await renderer.compileAsync(scene, camera);
       booted = true;
       // Explicit readiness signal. The loading overlay now clears when the
       // wordmark finishes rather than when the fish arrive, so "the scene is
