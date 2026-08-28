@@ -1,4 +1,4 @@
-import { Clock, PerspectiveCamera, Scene, Vector3 } from "three";
+import { Clock, MathUtils, PerspectiveCamera, Scene, Vector3 } from "three";
 import { createRenderer } from "./renderer";
 import { effectivePixelRatio, loadQuality, saveQuality, type QualityName } from "./quality";
 import { buildTank } from "./scene/tank";
@@ -21,6 +21,34 @@ import { PostPipeline } from "./post/composer";
 import { Controls } from "./ui/controls";
 import { revealLoadingWordmark } from "./ui/loadingWordmark";
 import { loadingManager } from "./utils/loaders";
+
+// Camera framing. The composition is authored for a wide screen; a phone held
+// upright is about 0.45 aspect, where the horizontal field of view collapses to
+// roughly a 2 unit wide slice of a 9 unit fish region and a single near fish
+// fills the frame. Visible width is always visible height times aspect, so a
+// tall screen cannot be given more width without also being given more empty
+// water above the tank. Instead the narrow slice is aimed lower, so the plant
+// bed anchors the bottom of the frame instead of fog filling the top, with the
+// camera pulled back and widened so no one fish dominates.
+const BASE_FOV = 45;
+const REFERENCE_ASPECT = 16 / 9;
+const NARROW_ASPECT = 0.5;
+
+function frameCamera(camera: PerspectiveCamera): void {
+  const aspect = window.innerWidth / window.innerHeight;
+  // 0 at the authored wide framing, 1 at phone-portrait proportions.
+  const narrow = MathUtils.clamp(
+    (REFERENCE_ASPECT - aspect) / (REFERENCE_ASPECT - NARROW_ASPECT),
+    0,
+    1
+  );
+
+  camera.aspect = aspect;
+  camera.fov = MathUtils.lerp(BASE_FOV, 58, narrow);
+  camera.position.set(0, MathUtils.lerp(-0.5, -0.15, narrow), MathUtils.lerp(6.0, 7.2, narrow));
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, MathUtils.lerp(-0.7, -1.15, narrow), 0);
+}
 
 const app = document.getElementById("app")!;
 const loadingEl = document.getElementById("loading")!;
@@ -100,9 +128,8 @@ function boot(): void {
   app.appendChild(renderer.domElement);
 
   const scene = new Scene();
-  const camera = new PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, -0.5, 6.0);
-  camera.lookAt(0, -0.7, 0);
+  const camera = new PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.1, 100);
+  frameCamera(camera);
 
   // Build the static scene.
   buildTank(scene);
@@ -155,8 +182,7 @@ function boot(): void {
   let focused = true;
 
   function onResize(): void {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    frameCamera(camera);
     renderer.setSize(window.innerWidth, window.innerHeight);
     post.setSize(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
     resizeWater(water, quality);
