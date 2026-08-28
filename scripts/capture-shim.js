@@ -106,12 +106,12 @@
       return framesPumped;
     },
 
-    // Pump frames until the loading overlay is hidden, i.e. fish have loaded,
-    // the wordmark reveal has finished and the render loop has started.
+    // Pump frames until the app reports every fish loaded and spawned. The
+    // loading overlay clears earlier than that, as soon as the wordmark plays,
+    // so waiting on the overlay would capture a half-populated tank.
     async pumpUntilReady(maxFrames) {
-      const loading = document.getElementById("loading");
       for (let i = 0; i < maxFrames; i++) {
-        if (loading && loading.classList.contains("hidden")) return i;
+        if (document.documentElement.dataset.aquariumReady === "1") return i;
         pumpOneFrame();
         await settle();
       }

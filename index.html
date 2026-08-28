@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aquarium</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🐟</text></svg>" />
+    <!-- Every fish texture is KTX2, so nothing renders textured until the Basis
+         transcoder has arrived. Starting it with the document rather than when
+         the first texture asks for it removes a serial hop on a slow link. -->
+    <link rel="preload" href="./basis/basis_transcoder.js" as="script" />
+    <link rel="preload" href="./basis/basis_transcoder.wasm" as="fetch" type="application/wasm" crossorigin />
     <style>
       :root { color-scheme: dark; }
       html, body { margin: 0; height: 100%; background: #04161c; overflow: hidden; }

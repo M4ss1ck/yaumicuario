@@ -20,7 +20,7 @@ import { FishManager } from "./fish/FishManager";
 import { PostPipeline } from "./post/composer";
 import { Controls } from "./ui/controls";
 import { revealLoadingWordmark } from "./ui/loadingWordmark";
-import { initLoaders, loadingManager } from "./utils/loaders";
+import { initLoaders } from "./utils/loaders";
 
 // Camera framing. The composition is authored for a wide screen; a phone held
 // upright is about 0.45 aspect, where the horizontal field of view collapses to
@@ -50,10 +50,31 @@ function frameCamera(camera: PerspectiveCamera): void {
   camera.lookAt(0, MathUtils.lerp(-0.7, -1.15, narrow), 0);
 }
 
+// Unobtrusive line over the live scene while the fish stream in, so the wait
+// is legible without a full-screen loading state hiding the tank.
+function makeFishProgress(): HTMLDivElement {
+  const el = document.createElement("div");
+  el.style.cssText = [
+    "position:fixed",
+    "left:0",
+    "right:0",
+    "bottom:22px",
+    "text-align:center",
+    "color:#82aab4",
+    "font:300 12px/1.4 system-ui,sans-serif",
+    "letter-spacing:0.12em",
+    "text-transform:uppercase",
+    "transition:opacity 0.8s ease",
+    "pointer-events:none",
+    "z-index:4"
+  ].join(";");
+  document.body.appendChild(el);
+  return el;
+}
+
 const app = document.getElementById("app")!;
 const loadingEl = document.getElementById("loading")!;
 const loadingWordmarkEl = document.getElementById("loading-wordmark") as HTMLCanvasElement;
-const loadingProgressEl = document.getElementById("loading-progress")!;
 const wordmarkRevealed = revealLoadingWordmark(loadingWordmarkEl);
 
 // Surface any failure instead of hanging on "Loading…" forever.
@@ -99,11 +120,16 @@ const WEBGL_HELP = `
   </div>
 `;
 
-// Global error nets (catch top-level throws too).
-window.addEventListener("error", (e) => showFatal("Error: " + (e.message || String(e.error))));
-window.addEventListener("unhandledrejection", (e) =>
-  showFatal("Error: " + (e.reason?.message ?? String(e.reason)))
-);
+// Error nets guard startup only. Once the aquarium is running, a transient
+// error must not blank a working scene and replace it with an error page; it
+// goes to the console instead.
+let booted = false;
+window.addEventListener("error", (e) => {
+  if (!booted) showFatal("Error: " + (e.message || String(e.error)));
+});
+window.addEventListener("unhandledrejection", (e) => {
+  if (!booted) showFatal("Error: " + (e.reason?.message ?? String(e.reason)));
+});
 
 // Pre-flight checks that otherwise produce an eternal loading screen.
 if (location.protocol === "file:") {
@@ -115,12 +141,6 @@ if (location.protocol === "file:") {
 }
 
 function boot(): void {
-  // Show load progress so a slow/failed asset is distinguishable from a crash.
-  loadingManager.onProgress = (_url, loaded, total) => {
-    if (!loadingEl.classList.contains("hidden")) {
-      loadingProgressEl.textContent = `Loading aquarium… (${loaded}/${total})`;
-    }
-  };
 
   let quality = loadQuality();
 
@@ -226,16 +246,38 @@ function boot(): void {
     post.render(dt, elapsed);
   }
 
-  // Load fish, then start the loop.
+  // The tank, floor, plants, rocks and water are ready now, so start rendering
+  // immediately and let the fish arrive into a scene that is already alive.
+  // Waiting for every model before showing anything meant a slow link saw a
+  // progress counter instead of an aquarium.
+  loop();
+
+  const fishProgressEl = makeFishProgress();
+
   fishManager
-    .load(scene)
-    .then(() => wordmarkRevealed)
+    .load(scene, (loadedBytes, totalBytes) => {
+      // Byte-level, because the old (loaded/total) counter over nine very
+      // unevenly sized files sat on one number for most of the wait.
+      const pct = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
+      fishProgressEl.textContent = totalBytes > 0
+        ? `Filling the tank… ${pct}%`
+        : `Filling the tank… ${(loadedBytes / 1048576).toFixed(1)} MB`;
+    })
     .then(() => {
-      loadingEl.classList.add("hidden");
-      loop();
+      booted = true;
+      // Explicit readiness signal. The loading overlay now clears when the
+      // wordmark finishes rather than when the fish arrive, so "the scene is
+      // complete" needs to be stated rather than inferred from the overlay.
+      document.documentElement.dataset.aquariumReady = "1";
+      fishProgressEl.style.opacity = "0";
+      setTimeout(() => fishProgressEl.remove(), 900);
     })
     .catch((err) => {
       console.error("Failed to load fish:", err);
-      showFatal("Failed to load aquarium assets: " + (err?.message ?? String(err)));
+      if (!booted) showFatal("Failed to load aquarium assets: " + (err?.message ?? String(err)));
     });
+
+  // Reveal the scene as soon as the wordmark has played, without waiting on
+  // the fish.
+  void wordmarkRevealed.then(() => loadingEl.classList.add("hidden"));
 }

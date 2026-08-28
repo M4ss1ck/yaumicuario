@@ -82,34 +82,69 @@ export class FishManager {
   private boids: Boid[] = [];
   private bounds = fishBounds();
 
-  async load(scene: Scene): Promise<void> {
-    for (const species of ROSTER) {
-      const gltf = await loadGLTF(asset(`assets/fish/${species.file}`));
-      const source = gltf.scene;
+  // Fetches every species at once. The roster used to be awaited one file at a
+  // time, which cost nine sequential round trips before the first fish could
+  // appear; on a high-latency link that dominated the transfer itself.
+  // Spawning still walks the roster in order, so which download happens to
+  // finish first does not change where the fish end up.
+  async load(
+    scene: Scene,
+    onProgress?: (loadedBytes: number, totalBytes: number) => void
+  ): Promise<void> {
+    const loaded = new Map<string, number>();
+    const totals = new Map<string, number>();
+    const sum = (m: Map<string, number>): number => {
+      let n = 0;
+      for (const v of m.values()) n += v;
+      return n;
+    };
 
-      // Material setup once on the shared source materials.
-      eachMaterial(source, (m) => {
-        if ((m as MeshStandardMaterial).isMeshStandardMaterial || (m as MeshPhysicalMaterial).isMeshPhysicalMaterial) {
-          registerCaustics(m);
-        }
-      });
+    const gltfs = await Promise.all(
+      ROSTER.map((species) =>
+        loadGLTF(asset(`assets/fish/${species.file}`), (event) => {
+          loaded.set(species.file, event.loaded);
+          // Content-Length is missing on some transfers; those files simply do
+          // not contribute to the total and the bar stays honest about the rest.
+          if (event.lengthComputable) totals.set(species.file, event.total);
+          onProgress?.(sum(loaded), sum(totals));
+        })
+      )
+    );
 
-      // Every clone is identical, so measure the species once.
-      const posed = measurePosed(source);
+    for (let i = 0; i < ROSTER.length; i++) {
+      this.addSpecies(scene, ROSTER[i], gltfs[i]);
+    }
+  }
 
-      // Shoal mates start clustered and share one wander target, otherwise they
-      // spawn too far apart to ever see each other and cohesion never engages.
-      const b = this.bounds;
-      const spread = Math.min(species.length * 14, 1.4);
-      const shoalCenter = new Vector3(
-        b.min.x + spread + Math.random() * (b.max.x - b.min.x - spread * 2),
-        b.min.y + spread + Math.random() * (b.max.y - b.min.y - spread * 2),
-        b.min.z + spread + Math.random() * (b.max.z - b.min.z - spread * 2)
-      );
-      const shoalTarget = new Vector3();
-      for (let i = 0; i < species.count; i++) {
-        this.spawn(scene, gltf, species, posed, shoalCenter, spread, shoalTarget, i === 0);
+  private addSpecies(
+    scene: Scene,
+    species: Species,
+    gltf: Awaited<ReturnType<typeof loadGLTF>>
+  ): void {
+    const source = gltf.scene;
+
+    // Material setup once on the shared source materials.
+    eachMaterial(source, (m) => {
+      if ((m as MeshStandardMaterial).isMeshStandardMaterial || (m as MeshPhysicalMaterial).isMeshPhysicalMaterial) {
+        registerCaustics(m);
       }
+    });
+
+    // Every clone is identical, so measure the species once.
+    const posed = measurePosed(source);
+
+    // Shoal mates start clustered and share one wander target, otherwise they
+    // spawn too far apart to ever see each other and cohesion never engages.
+    const b = this.bounds;
+    const spread = Math.min(species.length * 14, 1.4);
+    const shoalCenter = new Vector3(
+      b.min.x + spread + Math.random() * (b.max.x - b.min.x - spread * 2),
+      b.min.y + spread + Math.random() * (b.max.y - b.min.y - spread * 2),
+      b.min.z + spread + Math.random() * (b.max.z - b.min.z - spread * 2)
+    );
+    const shoalTarget = new Vector3();
+    for (let i = 0; i < species.count; i++) {
+      this.spawn(scene, gltf, species, posed, shoalCenter, spread, shoalTarget, i === 0);
     }
   }
 

@@ -23,9 +23,12 @@ export function initLoaders(renderer: WebGLRenderer): void {
   gltfLoader.setMeshoptDecoder(MeshoptDecoder);
 }
 
-export function loadGLTF(url: string): Promise<GLTF> {
+export function loadGLTF(
+  url: string,
+  onProgress?: (event: ProgressEvent) => void
+): Promise<GLTF> {
   return new Promise((resolve, reject) => {
-    gltfLoader.load(url, resolve, undefined, reject);
+    gltfLoader.load(url, resolve, onProgress, reject);
   });
 }
 
