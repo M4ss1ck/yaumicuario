@@ -1,4 +1,5 @@
 import { Box3, Vector3 } from "three";
+import { viewTopAt } from "../scene/dimensions";
 
 // Lightweight steering layer that drives where each fish swims. The skeletal
 // animation handles the body wiggle; this decides heading and position.
@@ -40,10 +41,14 @@ function limit(v: Vector3, max: number): Vector3 {
 }
 
 function pickWanderTarget(boid: Boid, bounds: Box3): void {
+  const z = bounds.min.z + Math.random() * (bounds.max.z - bounds.min.z);
+  // Pick the target under the same ceiling the steering enforces, otherwise the
+  // shoal is forever drawn toward a point it is not allowed to reach.
+  const maxY = Math.min(bounds.max.y, viewTopAt(z));
   boid.wanderTarget.set(
     bounds.min.x + Math.random() * (bounds.max.x - bounds.min.x),
-    bounds.min.y + Math.random() * (bounds.max.y - bounds.min.y),
-    bounds.min.z + Math.random() * (bounds.max.z - bounds.min.z)
+    bounds.min.y + Math.random() * (maxY - bounds.min.y),
+    z
   );
 }
 
@@ -81,10 +86,17 @@ export function steer(
   ) * 0.12;
   for (const axis of ["x", "y", "z"] as const) {
     const p = boid.position[axis];
+    // The ceiling follows the top edge of the frame rather than the box, so
+    // fish stop where the picture stops. A fixed box top left about a tenth of
+    // the shoal above the frame at any moment and produced a fish entering or
+    // leaving the top of the picture every few seconds, because the frame
+    // spreads with distance and the box does not.
+    const max =
+      axis === "y" ? Math.min(bounds.max.y, viewTopAt(boid.position.z)) : bounds.max[axis];
     if (p < bounds.min[axis] + wallMargin) {
       accel[axis] += (bounds.min[axis] + wallMargin - p) * WALL_WEIGHT;
-    } else if (p > bounds.max[axis] - wallMargin) {
-      accel[axis] -= (p - (bounds.max[axis] - wallMargin)) * WALL_WEIGHT;
+    } else if (p > max - wallMargin) {
+      accel[axis] -= (p - (max - wallMargin)) * WALL_WEIGHT;
     }
   }
 

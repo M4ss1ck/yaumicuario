@@ -9,6 +9,7 @@ import {
 } from "three";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { makeMoteSprite } from "../utils/textures";
+import { viewBottomAt, viewTopAt } from "./dimensions";
 
 // Screen-space volumetric light scattering (god rays). Radially blurs the bright
 // parts of the frame outward from the sun's projected screen position. Cheap
@@ -90,6 +91,10 @@ export function createGodRaysPass(): ShaderPass {
 // Suspended particles (motes) drifting slowly to sell the water volume. They
 // are confined to the viewed region in front of the camera rather than the
 // whole tank.
+// Clearance beyond the frame edge, so the wrap happens a little outside the
+// picture rather than exactly on the boundary.
+const MOTE_EDGE_MARGIN = 0.25;
+
 export class Motes {
   readonly points: Points;
   private velocities: Float32Array;
@@ -139,11 +144,15 @@ export class Motes {
       a[i * 3] += this.velocities[i * 3] * dt;
       a[i * 3 + 1] += this.velocities[i * 3 + 1] * dt;
       a[i * 3 + 2] += this.velocities[i * 3 + 2] * dt;
-      // Wrap when a particle rises above the viewed region; respawn at the bottom.
-      if (a[i * 3 + 1] > 3.4) {
-        a[i * 3 + 1] = -3.4;
+      // Wrap when a particle rises above the viewed region; respawn below it.
+      // Both edges have to be taken at the particle's own depth: the frame
+      // spreads with distance, so a fixed 3.4 ceiling sat 86% of the way up the
+      // screen for the far motes and they blinked out in plain sight.
+      const z = a[i * 3 + 2];
+      if (a[i * 3 + 1] > viewTopAt(z) + MOTE_EDGE_MARGIN) {
         a[i * 3] = (Math.random() * 2 - 1) * 7;
         a[i * 3 + 2] = -9 + Math.random() * 16;
+        a[i * 3 + 1] = viewBottomAt(a[i * 3 + 2]) - MOTE_EDGE_MARGIN;
       }
     }
     pos.needsUpdate = true;

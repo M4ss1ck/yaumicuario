@@ -1,6 +1,7 @@
 import { Clock, MathUtils, PerspectiveCamera, Scene, Vector3 } from "three";
 import { createRenderer } from "./renderer";
 import { effectivePixelRatio, isMobile, loadQuality, saveQuality, type QualityName } from "./quality";
+import { updateViewEdges } from "./scene/dimensions";
 import { buildTank } from "./scene/tank";
 import { buildGround } from "./scene/ground";
 import { buildRocks } from "./scene/rocks";
@@ -56,6 +57,7 @@ function frameCamera(camera: PerspectiveCamera): void {
   camera.position.set(0, MathUtils.lerp(-0.5, -0.15, narrow), MathUtils.lerp(6.0, 7.2, narrow));
   camera.updateProjectionMatrix();
   camera.lookAt(0, MathUtils.lerp(-0.7, -1.15, narrow), 0);
+  updateViewEdges(camera);
 }
 
 // Unobtrusive line over the live scene while the fish stream in, so the wait
