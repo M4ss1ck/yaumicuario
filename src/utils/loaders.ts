@@ -1,5 +1,7 @@
-import { LoadingManager } from "three";
+import { LoadingManager, type WebGLRenderer } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 // Shared loading manager so the UI can show overall progress.
@@ -7,8 +9,20 @@ export const loadingManager = new LoadingManager();
 
 const gltfLoader = new GLTFLoader(loadingManager);
 
-// The bundled models are plain glTF (no DRACO / meshopt required), so a default
-// GLTFLoader is enough. If compressed assets are added later, wire decoders here.
+// The fish models carry KTX2/Basis textures and meshopt-compressed geometry
+// (see scripts/optimize-assets.mjs), so both decoders must be wired before any
+// of them will parse. KTX2 transcoding needs the renderer to pick a GPU format
+// the device actually supports, which is why this cannot run at module scope.
+// The transcoder files in public/basis/ are copied from the three.js version in
+// package.json and must be refreshed when three is upgraded.
+export function initLoaders(renderer: WebGLRenderer): void {
+  const ktx2Loader = new KTX2Loader(loadingManager)
+    .setTranscoderPath(asset("basis/"))
+    .detectSupport(renderer);
+  gltfLoader.setKTX2Loader(ktx2Loader);
+  gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+}
+
 export function loadGLTF(url: string): Promise<GLTF> {
   return new Promise((resolve, reject) => {
     gltfLoader.load(url, resolve, undefined, reject);

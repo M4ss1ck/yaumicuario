@@ -22,8 +22,26 @@ for build/run/deploy.
 
 ## Assets
 
-- Fish GLBs: `public/assets/fish/` (CC0). Source `.zip`s and the unused
-  spec-gloss `guppy.glb` are in `asset-sources/` (not deployed).
+- Fish GLBs: `public/assets/fish/` (CC0), KTX2/Basis textures and
+  meshopt-compressed geometry, ~2.0 MB total. These are generated, not authored.
+- Originals are `asset-sources/fish-original/` (~33.5 MB, not deployed).
+  Regenerate with:
+
+  ```bash
+  KTX_BIN_DIR=/path/to/ktx/bin KTX_LIB_DIR=/path/to/ktx/lib \
+    node scripts/optimize-assets.mjs
+  ```
+
+  Needs the `ktx` binary from KhronosGroup/KTX-Software (not on npm). The
+  script resizes per species, encodes normals as UASTC and everything else as
+  ETC1S, welds, decimates the two heaviest models, then prunes, dedups and
+  meshopt-compresses. `meshopt` must stay last: `prune` decodes
+  `EXT_meshopt_compression` and re-inflates the files if it runs after.
+- `public/basis/` holds the Basis transcoder copied from the three.js version
+  in `package.json`; refresh it when three is upgraded, or KTX2 textures will
+  fail to transcode.
+- Source `.zip`s and the unused spec-gloss `guppy.glb` are also in
+  `asset-sources/` (not deployed).
 - Lighting, floor, water normals and caustics are procedural; no HDRI/textures
   are downloaded.
 

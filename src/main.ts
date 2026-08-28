@@ -20,7 +20,7 @@ import { FishManager } from "./fish/FishManager";
 import { PostPipeline } from "./post/composer";
 import { Controls } from "./ui/controls";
 import { revealLoadingWordmark } from "./ui/loadingWordmark";
-import { loadingManager } from "./utils/loaders";
+import { initLoaders, loadingManager } from "./utils/loaders";
 
 // Camera framing. The composition is authored for a wide screen; a phone held
 // upright is about 0.45 aspect, where the horizontal field of view collapses to
@@ -125,6 +125,7 @@ function boot(): void {
   let quality = loadQuality();
 
   const renderer = createRenderer(quality);
+  initLoaders(renderer);
   app.appendChild(renderer.domElement);
 
   const scene = new Scene();
