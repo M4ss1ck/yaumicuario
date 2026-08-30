@@ -138,7 +138,7 @@ function buildLayerGeometry(
 // Inject the sway into the shared material's vertex shader. The motion is
 // applied at begin_vertex, before project_vertex, so the caustics injection
 // (which reads `transformed` at project_vertex) sees the swayed position.
-function registerSway(material: Material): void {
+export function registerSway(material: Material): void {
   if (injected.has(material)) return;
   injected.add(material);
 
