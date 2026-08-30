@@ -322,3 +322,35 @@ export function makeWaterNormalTextures(size = 512): {
   normalMap1.anisotropy = 8;
   return { normalMap0, normalMap1 };
 }
+
+// A bubble: a bright rim with a hollow middle and one specular highlight, which
+// is what separates a bubble from the soft blob used for suspended motes.
+export function makeBubbleSprite(size = 64): CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const r = size / 2;
+
+  const rim = ctx.createRadialGradient(r, r, r * 0.55, r, r, r);
+  rim.addColorStop(0, "rgba(255,255,255,0)");
+  rim.addColorStop(0.72, "rgba(210,245,255,0.55)");
+  rim.addColorStop(0.93, "rgba(255,255,255,0.85)");
+  rim.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = rim;
+  ctx.fillRect(0, 0, size, size);
+
+  // Faint fill, so the bubble is not a bare outline against dark water.
+  const fill = ctx.createRadialGradient(r, r, 0, r, r, r * 0.8);
+  fill.addColorStop(0, "rgba(190,235,250,0.12)");
+  fill.addColorStop(1, "rgba(190,235,250,0)");
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, size, size);
+
+  const spec = ctx.createRadialGradient(r * 0.66, r * 0.6, 0, r * 0.66, r * 0.6, r * 0.28);
+  spec.addColorStop(0, "rgba(255,255,255,0.9)");
+  spec.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = spec;
+  ctx.fillRect(0, 0, size, size);
+
+  return new CanvasTexture(canvas);
+}

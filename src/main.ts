@@ -5,6 +5,7 @@ import { updateViewEdges } from "./scene/dimensions";
 import { buildTank } from "./scene/tank";
 import { buildGround } from "./scene/ground";
 import { buildRocks } from "./scene/rocks";
+import { buildReef } from "./scene/reef";
 import { buildLighting } from "./scene/lighting";
 import {
   buildWater,
@@ -14,14 +15,17 @@ import {
   waterHasCaptures
 } from "./scene/water";
 import { Motes } from "./scene/godrays";
+import { Bubbles } from "./scene/bubbles";
 import { updateCaustics } from "./scene/caustics";
 import { buildPlants, updatePlants } from "./scene/plants";
 import { updateWiggle } from "./fish/wiggle";
 import { FishManager } from "./fish/FishManager";
+import { CreatureManager } from "./creatures/CreatureManager";
 import { PostPipeline } from "./post/composer";
 import { Controls } from "./ui/controls";
 import { revealLoadingWordmark } from "./ui/loadingWordmark";
 import { initLoaders } from "./utils/loaders";
+import { Ambience } from "./audio/ambience";
 import { registerSW } from "./pwa";
 
 // Camera framing. The composition is authored for a wide screen; a phone held
@@ -38,6 +42,12 @@ import { registerSW } from "./pwa";
 // reads as steppy rather than calm.
 const TARGET_FPS = isMobile() ? 30 : 60;
 const REFRESH_SLACK_MS = 4;
+
+// The column is cheap enough to keep on the Low tier, which switches the motes
+// off entirely, but a phone still gets a thinner stream.
+function bubbleCount(quality: { motes: number }): number {
+  return quality.motes === 0 ? 40 : 110;
+}
 
 const BASE_FOV = 45;
 const REFERENCE_ASPECT = 16 / 9;
@@ -167,19 +177,29 @@ function boot(): void {
   buildTank(scene);
   buildGround(scene);
   buildRocks(scene);
+  buildReef(scene);
   buildPlants(scene);
   const lighting = buildLighting(scene, renderer, quality);
   let water = buildWater(scene, lighting.sun.position, quality);
   let motes = new Motes(scene, quality.motes);
+  // Unlike the motes, the column renders on every tier: it is one draw call,
+  // and it is the visible source of the bubble sounds.
+  let bubbles = new Bubbles(scene, bubbleCount(quality));
 
   const post = new PostPipeline(renderer, scene, camera, quality);
   const fishManager = new FishManager();
+  const creatureManager = new CreatureManager();
 
-  const controls = new Controls(quality.name, (name: QualityName) => {
-    quality = saveQuality(name);
-    applyQuality();
-  });
-  void controls;
+  const ambience = new Ambience();
+  const controls = new Controls(
+    quality.name,
+    (name: QualityName) => {
+      quality = saveQuality(name);
+      applyQuality();
+    },
+    () => ambience.toggle()
+  );
+  ambience.restore((on) => controls.reflectSound(on));
 
   // The shadow map is rendered by every renderer.render() call, and a frame
   // makes several: the main pass plus the depth and normal prepasses that DOF
@@ -198,6 +218,8 @@ function boot(): void {
     // Rebuild motes to match the new particle budget.
     motes.dispose();
     motes = new Motes(scene, quality.motes);
+    bubbles.dispose();
+    bubbles = new Bubbles(scene, bubbleCount(quality));
     // The surface shader variant and its capture targets are fixed at
     // construction, so a tier that flips quality.water needs a new mesh.
     if (waterHasCaptures(water) !== quality.water) {
@@ -231,6 +253,7 @@ function boot(): void {
   // Pause when the tab is hidden; throttle when the window loses focus.
   document.addEventListener("visibilitychange", () => {
     running = !document.hidden;
+    ambience.setSuspended(document.hidden);
     if (running) {
       clock.getDelta(); // drop the accumulated gap
       loop();
@@ -281,11 +304,14 @@ function boot(): void {
     renderer.shadowMap.needsUpdate = quality.shadows;
 
     fishManager.update(dt, camera.position);
+    creatureManager.update(dt, elapsed);
     updateWater(water, dt);
     updateCaustics(elapsed);
     updatePlants(elapsed);
     updateWiggle(elapsed);
     motes.update(dt);
+    bubbles.update(dt);
+    ambience.update(dt);
     updateSunScreen();
 
     post.render(dt, elapsed);
@@ -299,15 +325,30 @@ function boot(): void {
 
   const fishProgressEl = makeFishProgress();
 
-  fishManager
-    .load(scene, (loadedBytes, totalBytes) => {
-      // Byte-level, because the old (loaded/total) counter over nine very
-      // unevenly sized files sat on one number for most of the wait.
-      const pct = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
-      fishProgressEl.textContent = totalBytes > 0
-        ? `Filling the tank… ${pct}%`
-        : `Filling the tank… ${(loadedBytes / 1048576).toFixed(1)} MB`;
+  // Fish and creatures stream in together, and the one progress line covers
+  // both, so it has to add up their byte counts rather than track either alone.
+  const streamed = { fish: [0, 0], creatures: [0, 0] };
+  function reportProgress(): void {
+    const loadedBytes = streamed.fish[0] + streamed.creatures[0];
+    const totalBytes = streamed.fish[1] + streamed.creatures[1];
+    // Byte-level, because the old (loaded/total) counter over nine very
+    // unevenly sized files sat on one number for most of the wait.
+    const pct = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
+    fishProgressEl.textContent = totalBytes > 0
+      ? `Filling the tank… ${pct}%`
+      : `Filling the tank… ${(loadedBytes / 1048576).toFixed(1)} MB`;
+  }
+
+  Promise.all([
+    fishManager.load(scene, (loadedBytes, totalBytes) => {
+      streamed.fish = [loadedBytes, totalBytes];
+      reportProgress();
+    }),
+    creatureManager.load(scene, (loadedBytes, totalBytes) => {
+      streamed.creatures = [loadedBytes, totalBytes];
+      reportProgress();
     })
+  ])
     .then(async () => {
       // Compile every program the fish need before the scene is declared
       // ready. Otherwise each new material and pass combination compiles the
@@ -323,7 +364,7 @@ function boot(): void {
       setTimeout(() => fishProgressEl.remove(), 900);
     })
     .catch((err) => {
-      console.error("Failed to load fish:", err);
+      console.error("Failed to load the cast:", err);
       if (!booted) showFatal("Failed to load aquarium assets: " + (err?.message ?? String(err)));
     });
 
