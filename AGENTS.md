@@ -13,9 +13,14 @@ for build/run/deploy.
 
 ## Layout
 
-- `src/scene/` - tank shell, ground, lighting/fog/IBL, water, caustics, god rays
+- `src/scene/` - tank shell, ground, rocks, procedural reef, lighting/fog/IBL,
+  water, caustics, god rays, bubble column
 - `src/fish/` - FishManager (load + instance), Fish (per-instance), boids,
   wiggle (fallback swim for non-animated models)
+- `src/creatures/` - the non-fish cast, each with its own steering rather than
+  boids: cruiser (dolphin and great white crossing the far lane), crab (sand
+  walker), octopus (perched, shader-driven arms)
+- `src/audio/ambience.ts` - procedural Web Audio bed, no sample files
 - `src/post/composer.ts` - bloom, DOF, god rays, grading/vignette/grain
 - `src/quality.ts`, `src/ui/controls.ts` - quality tiers and overlay
 - `src/main.ts` - scene assembly and render loop
@@ -24,6 +29,21 @@ for build/run/deploy.
 
 - Fish GLBs: `public/assets/fish/` (CC0), KTX2/Basis textures and
   meshopt-compressed geometry, ~2.0 MB total. These are generated, not authored.
+- Creature GLBs: `public/assets/creatures/` (dolphin, great white shark,
+  octopus, crab), ~2.75 MB total. Dolphin, shark and octopus are CC BY 4.0, so
+  `CREDITS.md` and the in-app credits dialog carry required attribution; do not
+  reintroduce the old "all assets are CC0" wording. Originals are in
+  `asset-sources/creatures-original/` (~135 MB, not deployed). Regenerate with:
+
+  ```bash
+  KTX_BIN_DIR=/path/to/ktx/bin KTX_LIB_DIR=/path/to/ktx/lib \
+    node scripts/optimize-creatures.mjs
+  ```
+
+  Each of the three needs a repair step before the shared pipeline works (the
+  dolphin ships 544 unskinned decor meshes, the shark ships toon outline shells
+  that z-fight with its body, the octopus is an unrigged 1.97M triangle scan
+  whose UV seams block simplification). The script header explains each one.
 - Originals are `asset-sources/fish-original/` (~33.5 MB, not deployed).
   Regenerate with:
 
