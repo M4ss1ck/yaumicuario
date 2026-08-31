@@ -4,3 +4,10 @@ dist/
 .DS_Store
 captures/
 plan.md
+docs/superpowers/
+
+# The raw octopus photoscan is 116 MB on its own, which is more than the rest
+# of the repository put together. The other three originals are kept (matching
+# asset-sources/fish-original/); this one is re-downloadable by uid, see the
+# provenance table in scripts/optimize-creatures.mjs.
+asset-sources/creatures-original/octopus.glb
