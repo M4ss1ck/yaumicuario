@@ -126,6 +126,12 @@ export class Motes {
     });
     this.points = new Points(geo, mat);
     this.points.name = "motes";
+    // Same reason as the bubble column: the water surface is transparent too,
+    // and its origin is nearer the camera than the mote cloud's, so three.js
+    // sorts it after and composites it over the motes. Every mote is below the
+    // surface, so drawing them after it is both correct and what keeps the ones
+    // high in the water column visible instead of washing out.
+    this.points.renderOrder = 2;
     scene.add(this.points);
   }
 

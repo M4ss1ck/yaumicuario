@@ -18,11 +18,15 @@
 
 const STORAGE_KEY = "aquarium.sound";
 const FADE_SECONDS = 1.0;
-const MASTER_LEVEL = 0.34;
+const MASTER_LEVEL = 0.11;
 
 // Brown noise: a random walk rather than white noise, which puts the energy
 // low where a body of water actually sits. The buffer is long enough that its
 // own loop point is not audible under everything else.
+//
+// Levels throughout are set for something meant to be left running for hours,
+// where anything you can pick out as a sound is already too loud. The bed
+// should read as room tone, not as a recording of water.
 function makeBrownNoise(ctx: AudioContext, seconds: number): AudioBuffer {
   const buffer = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -102,10 +106,10 @@ export class Ambience {
     body.loop = true;
     const bodyFilter = ctx.createBiquadFilter();
     bodyFilter.type = "lowpass";
-    bodyFilter.frequency.value = 320;
+    bodyFilter.frequency.value = 210;
     bodyFilter.Q.value = 0.6;
     const bodyGain = ctx.createGain();
-    bodyGain.gain.value = 0.9;
+    bodyGain.gain.value = 0.7;
     body.connect(bodyFilter).connect(bodyGain).connect(master);
     body.start();
 
@@ -114,7 +118,7 @@ export class Ambience {
     const swell = ctx.createOscillator();
     swell.frequency.value = 0.045;
     const swellDepth = ctx.createGain();
-    swellDepth.gain.value = 120;
+    swellDepth.gain.value = 70;
     swell.connect(swellDepth).connect(bodyFilter.frequency);
     swell.start();
 
@@ -125,13 +129,13 @@ export class Ambience {
     surface.playbackRate.value = 1.37; // decorrelate it from the body layer
     const surfaceFilter = ctx.createBiquadFilter();
     surfaceFilter.type = "highpass";
-    surfaceFilter.frequency.value = 2600;
+    surfaceFilter.frequency.value = 3200;
     const surfaceGain = ctx.createGain();
-    surfaceGain.gain.value = 0.05;
+    surfaceGain.gain.value = 0.012;
     surface.connect(surfaceFilter).connect(surfaceGain).connect(master);
     surface.start();
 
-    this.nextBubbleIn = 0.4;
+    this.nextBubbleIn = 1.2;
   }
 
   // One bubble: a short sine whose pitch sweeps sharply upward as the bubble
@@ -149,7 +153,7 @@ export class Ambience {
     osc.frequency.exponentialRampToValueAtTime(base * (2.2 + Math.random()), now + 0.055);
 
     const gain = ctx.createGain();
-    const peak = 0.05 + Math.random() * 0.09;
+    const peak = 0.018 + Math.random() * 0.035;
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(peak, now + 0.006);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09 + Math.random() * 0.07);
@@ -192,8 +196,8 @@ export class Ambience {
     if (this.bubbleTimer >= this.nextBubbleIn) {
       this.bubbleTimer = 0;
       // Bubbles arrive in an uneven trickle. A fixed interval reads as a
-      // metronome within seconds.
-      this.nextBubbleIn = 0.12 + Math.random() * 0.9;
+      // metronome within seconds, and a fast one reads as a boiling kettle.
+      this.nextBubbleIn = 0.55 + Math.random() * 2.2;
       this.popBubble();
     }
   }

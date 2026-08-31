@@ -1,5 +1,4 @@
 import {
-  AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
   Points,
@@ -23,12 +22,17 @@ import { makeBubbleSprite } from "../utils/textures";
 // It was originally behind the near hero stone stage right, which framed better
 // on a wide screen but sat outside the portrait frame entirely: a phone heard
 // bubbles and saw none, which defeats the point of having a visible source.
-const SOURCE_X = 1.9;
+//
+// The x is also chosen to sit between two of the god-ray beams rather than
+// under one. The beams in post/godrays.ts are centred at screen u = 0.20, 0.41,
+// 0.62 and 0.79, and additively blended bubbles crossing the brightest one lose
+// almost all their contrast: the column appeared to stop partway up.
+const SOURCE_X = 0.9;
 const SOURCE_Z = -4.6;
 // Bubbles leave the vent within a few centimetres of each other and spread as
 // they climb, which is what makes a column read as a column.
 const VENT_SPREAD = 0.05;
-const DRIFT_SPREAD = 0.22;
+const DRIFT_SPREAD = 0.13;
 
 interface BubbleState {
   /** 0 at the vent, 1 at the surface. */
@@ -60,12 +64,20 @@ export class Bubbles {
     const geo = new BufferGeometry();
     geo.setAttribute("position", new BufferAttribute(positions, 3));
     const mat = new PointsMaterial({
-      size: 0.075,
+      size: 0.11,
       map: makeBubbleSprite(),
       transparent: true,
       depthWrite: false,
-      blending: AdditiveBlending,
-      opacity: 0.65,
+      // Normal blending, not additive, and unfogged. Both are about the same
+      // problem: the column sits 10.6 m from the camera, where FogExp2 at
+      // density 0.11 fades it 76% toward the fog colour, which is exactly the
+      // colour of the open water it is seen against above the plant line. The
+      // bubbles were there the whole way up (their positions are uniform to the
+      // surface) but faded into the background they were drawn on. Exempting
+      // them from fog keeps them legible over water as well as over the sand,
+      // and the sprite's own dark ring does the rest.
+      fog: false,
+      opacity: 0.82,
       color: 0xd8f4ff,
       sizeAttenuation: true
     });
@@ -75,6 +87,12 @@ export class Bubbles {
     // computed from a single frame's positions would cull it as the bubbles
     // move. It is one draw call, so skipping the frustum test costs nothing.
     this.points.frustumCulled = false;
+    // Draw after the water surface. Both are transparent, and three.js sorts
+    // the transparent queue back to front by object distance: the water's
+    // origin is nearer the camera than the column's, so the surface was being
+    // composited over the bubbles and washing out the top of the column, which
+    // is the part seen against open water rather than against the sand.
+    this.points.renderOrder = 2;
     scene.add(this.points);
     this.update(0);
   }
@@ -105,15 +123,17 @@ export class Bubbles {
     const height = HALF.y * 2;
 
     for (let i = 0; i < this.count; i++) {
-      const state = this.states[i];
+      let state = this.states[i];
       state.rise += (state.speed / height) * dt;
       if (state.rise >= 1) {
         // Respawn at the vent rather than wrapping in place, so a bubble is
-        // never seen appearing halfway up the water column.
+        // never seen appearing halfway up the water column. Fall through to the
+        // position write: skipping it left last frame's position, up at the
+        // surface, in the buffer for a frame.
         this.states[i] = this.newState(0);
         this.originX[i] = SOURCE_X + (Math.random() - 0.5) * VENT_SPREAD;
         this.originZ[i] = SOURCE_Z + (Math.random() - 0.5) * VENT_SPREAD;
-        continue;
+        state = this.states[i];
       }
       const wobble = Math.sin(state.rise * height * state.wobbleRate + state.wobblePhase);
       a[i * 3] = this.originX[i] + wobble * DRIFT_SPREAD * state.rise;

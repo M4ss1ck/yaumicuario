@@ -46,7 +46,7 @@ const REFRESH_SLACK_MS = 4;
 // The column is cheap enough to keep on the Low tier, which switches the motes
 // off entirely, but a phone still gets a thinner stream.
 function bubbleCount(quality: { motes: number }): number {
-  return quality.motes === 0 ? 40 : 110;
+  return quality.motes === 0 ? 55 : 150;
 }
 
 const BASE_FOV = 45;

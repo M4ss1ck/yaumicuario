@@ -323,18 +323,34 @@ export function makeWaterNormalTextures(size = 512): {
   return { normalMap0, normalMap1 };
 }
 
-// A bubble: a bright rim with a hollow middle and one specular highlight, which
-// is what separates a bubble from the soft blob used for suspended motes.
+// A bubble: a dark outer ring, a bright inner rim, a hollow middle and one
+// specular highlight. That is what separates a bubble from the soft blob used
+// for the suspended motes, and the dark ring is what makes it legible against
+// the bright water near the surface as well as the murk lower down. A purely
+// additive highlight disappears up there, because ACES tone mapping compresses
+// anything added on top of an already-bright background.
 export function makeBubbleSprite(size = 64): CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext("2d")!;
   const r = size / 2;
 
-  const rim = ctx.createRadialGradient(r, r, r * 0.55, r, r, r);
+  // Dark ring first, so the bright rim sits inside it.
+  // The dark ring does most of the work. Water near the surface is bright, and
+  // a pale bubble on a pale ground is invisible however opaque it is; the ring
+  // is what keeps the column readable from the sand all the way up.
+  const ring = ctx.createRadialGradient(r, r, r * 0.25, r, r, r);
+  ring.addColorStop(0, "rgba(3,30,38,0.30)");
+  ring.addColorStop(0.55, "rgba(3,30,38,0.62)");
+  ring.addColorStop(0.85, "rgba(3,30,38,0.78)");
+  ring.addColorStop(1, "rgba(3,30,38,0)");
+  ctx.fillStyle = ring;
+  ctx.fillRect(0, 0, size, size);
+
+  const rim = ctx.createRadialGradient(r, r, r * 0.5, r, r, r * 0.94);
   rim.addColorStop(0, "rgba(255,255,255,0)");
-  rim.addColorStop(0.72, "rgba(210,245,255,0.55)");
-  rim.addColorStop(0.93, "rgba(255,255,255,0.85)");
+  rim.addColorStop(0.68, "rgba(214,246,255,0.5)");
+  rim.addColorStop(0.9, "rgba(255,255,255,0.92)");
   rim.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = rim;
   ctx.fillRect(0, 0, size, size);
