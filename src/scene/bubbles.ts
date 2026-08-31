@@ -17,11 +17,14 @@ import { makeBubbleSprite } from "../utils/textures";
 // dozen billboards is the whole cost and it renders on every quality tier for
 // that reason, unlike the motes which Low switches off entirely.
 
-// Behind the near hero stone, which sits at (5.6, -2.6) and spans roughly
-// z = -3.6 to -1.6 (see rocks.ts). The vent has to clear the far side of that
-// footprint, or the bubbles spawn inside the rock and rise through it.
-const SOURCE_X = 5.6;
-const SOURCE_Z = -3.9;
+// Near the center-rear reef mass, and behind the fish steering box (which ends
+// at z = -3.5) so nothing swims through the column.
+//
+// It was originally behind the near hero stone stage right, which framed better
+// on a wide screen but sat outside the portrait frame entirely: a phone heard
+// bubbles and saw none, which defeats the point of having a visible source.
+const SOURCE_X = 1.9;
+const SOURCE_Z = -4.6;
 // Bubbles leave the vent within a few centimetres of each other and spread as
 // they climb, which is what makes a column read as a column.
 const VENT_SPREAD = 0.05;

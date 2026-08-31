@@ -62,7 +62,7 @@ interface Branch {
 // `tipness` (0 at the colony base, 1 at the outermost twigs) drives the vertex
 // color toward the pale polyp tint.
 function segmentGeometry(branch: Branch, tipness: number, hue: Color): BufferGeometry {
-  const geo = new CylinderGeometry(branch.radius * 0.62, branch.radius, branch.length, 6, 1, true);
+  const geo = new CylinderGeometry(branch.radius * 0.78, branch.radius, branch.length, 7, 1, true);
   // CylinderGeometry is built around the origin along +Y; shift it so the base
   // sits at the origin, then rotate +Y onto the branch direction.
   geo.translate(0, branch.length / 2, 0);
@@ -132,8 +132,8 @@ function growColony(
       {
         origin: tip,
         direction,
-        length: root.length * (0.62 + rng() * 0.18),
-        radius: root.radius * 0.68,
+        length: root.length * (0.55 + rng() * 0.15),
+        radius: root.radius * 0.8,
         depth: root.depth + 1
       },
       hue,
@@ -245,9 +245,16 @@ function registerCoralRim(material: Material): void {
 }
 
 // One outcrop: a cluster of branching colonies, domes and fans around a center.
-// The frame is only 11.8 m wide at z = -2.5 and 16.2 m at z = -5.5, so these
-// centers are chosen to sit just outside the +-4.6 fish steering range but
-// still inside the picture.
+//
+// Two of the three flank the shot, sitting just outside the +-4.6 fish steering
+// range but inside the picture, the way the four hero stones already do. That
+// works on a wide screen and fails completely on a phone held upright: the
+// portrait framing spans only +-2.4 m at z = -2.5, so both flanking masses fall
+// outside it and a phone sees no reef at all.
+//
+// The third mass exists for that. It sits near the center line and far enough
+// back to clear the fish steering box (which ends at z = -3.5), where it is
+// inside the frame in both aspects. It is the one that carries the octopus.
 interface Outcrop {
   x: number;
   z: number;
@@ -255,12 +262,54 @@ interface Outcrop {
   colonies: number;
   domes: number;
   fans: number;
+  /** Pull the scatter in, so a mass close to the fish box does not reach into it. */
+  tight?: boolean;
+  /**
+   * Keep this patch of the outcrop bare. The octopus perches on the center-rear
+   * mass, and without a clearing a colony lands on the same spot and grows
+   * branches straight through its body.
+   */
+  clearing?: { x: number; z: number; radius: number };
 }
 
 const OUTCROPS: Outcrop[] = [
   { x: -4.85, z: -2.5, scale: 1.15, colonies: 7, domes: 5, fans: 3 }, // hero, stage left
-  { x: 6.0, z: -5.5, scale: 0.95, colonies: 5, domes: 4, fans: 2 } // satellite, stage right
+  { x: 6.0, z: -5.5, scale: 0.95, colonies: 5, domes: 4, fans: 2 }, // satellite, stage right
+  {
+    // Center rear: the only mass inside the frame in both aspects.
+    x: -1.6,
+    z: -4.6,
+    scale: 0.8,
+    colonies: 5,
+    domes: 4,
+    fans: 2,
+    tight: true,
+    clearing: { x: -1.6, z: -4.3, radius: 0.9 }
+  }
 ];
+
+// Pick a spot in the outcrop, rejecting anything that lands in the clearing.
+// Bounded, because with a large clearing every draw could in principle be
+// rejected; falling back to the last draw is fine, the reef is decorative.
+function scatter(
+  rng: () => number,
+  outcrop: Outcrop,
+  minDistance: number,
+  maxDistance: number
+): { x: number; z: number } {
+  let x = outcrop.x;
+  let z = outcrop.z;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const angle = rng() * Math.PI * 2;
+    const distance = minDistance + rng() * maxDistance;
+    x = outcrop.x + Math.cos(angle) * distance;
+    z = outcrop.z + Math.sin(angle) * distance;
+    const clearing = outcrop.clearing;
+    if (!clearing) break;
+    if (Math.hypot(x - clearing.x, z - clearing.z) >= clearing.radius) break;
+  }
+  return { x, z };
+}
 
 export function buildReef(scene: Scene): void {
   const rng = mulberry32(90210);
@@ -276,8 +325,8 @@ export function buildReef(scene: Scene): void {
         {
           origin: new Vector3(0, 0, 0),
           direction: new Vector3((rng() - 0.5) * 0.5, 1, (rng() - 0.5) * 0.5).normalize(),
-          length: 0.34 + rng() * 0.16,
-          radius: 0.055 + rng() * 0.025,
+          length: 0.3 + rng() * 0.14,
+          radius: 0.085 + rng() * 0.035,
           depth: 0
         },
         hue,
@@ -287,13 +336,12 @@ export function buildReef(scene: Scene): void {
       );
       const colony = mergeGeometries(parts, false);
       for (const p of parts) p.dispose();
-      const angle = rng() * Math.PI * 2;
-      const distance = rng() * 1.5 * outcrop.scale;
+      const at = scatter(rng, outcrop, 0, 1.5 * outcrop.scale * (outcrop.tight ? 0.6 : 1));
       rigid.push(
         placeAt(
           colony,
-          outcrop.x + Math.cos(angle) * distance,
-          outcrop.z + Math.sin(angle) * distance,
+          at.x,
+          at.z,
           rng() * Math.PI * 2,
           outcrop.scale * (0.8 + rng() * 0.5)
         )
@@ -302,13 +350,12 @@ export function buildReef(scene: Scene): void {
 
     for (let i = 0; i < outcrop.domes; i++) {
       const hue = CORAL_COLORS[Math.floor(rng() * CORAL_COLORS.length)];
-      const angle = rng() * Math.PI * 2;
-      const distance = rng() * 1.8 * outcrop.scale;
+      const at = scatter(rng, outcrop, 0, 1.8 * outcrop.scale * (outcrop.tight ? 0.6 : 1));
       rigid.push(
         placeAt(
           domeGeometry(rng, 0.22 + rng() * 0.2, hue),
-          outcrop.x + Math.cos(angle) * distance,
-          outcrop.z + Math.sin(angle) * distance,
+          at.x,
+          at.z,
           rng() * Math.PI * 2,
           outcrop.scale
         )
@@ -323,8 +370,8 @@ export function buildReef(scene: Scene): void {
         {
           origin: new Vector3(0, 0, 0),
           direction: new Vector3(0, 1, 0),
-          length: 0.4 + rng() * 0.2,
-          radius: 0.03 + rng() * 0.012,
+          length: 0.34 + rng() * 0.16,
+          radius: 0.045 + rng() * 0.015,
           depth: 0
         },
         hue,
@@ -335,13 +382,13 @@ export function buildReef(scene: Scene): void {
       const fan = mergeGeometries(parts, false);
       for (const p of parts) p.dispose();
       addSwayAttributes(fan, rng() * Math.PI * 2, 0.035);
-      const angle = rng() * Math.PI * 2;
-      const distance = 0.8 + rng() * 1.4 * outcrop.scale;
+      const tight = outcrop.tight ? 0.6 : 1;
+      const at = scatter(rng, outcrop, 0.8 * tight, 1.4 * outcrop.scale * tight);
       swaying.push(
         placeAt(
           fan,
-          outcrop.x + Math.cos(angle) * distance,
-          outcrop.z + Math.sin(angle) * distance,
+          at.x,
+          at.z,
           rng() * Math.PI * 2,
           outcrop.scale * (0.9 + rng() * 0.4)
         )

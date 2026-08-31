@@ -28,18 +28,16 @@ const OCTOPUS: CreatureSpec = { file: "octopus.glb", bodyAxis: "z", headDir: 1, 
 
 const ROSTER = [DOLPHIN, SHARK, CRAB, OCTOPUS];
 
-// On the near edge of the hero reef mass (see reef.ts OUTCROPS), whose colonies
-// scatter within about 1.7 m of its center and whose domes stand around 0.25 m
-// off a floor at y = -3.5. Pulled toward the camera from the mass center so it
-// is not buried in the colonies.
+// On the center-rear reef mass (see reef.ts OUTCROPS), whose domes stand around
+// 0.25 m off a floor at y = -3.5.
 //
-// It is partly veiled by eelgrass, and there is no perch that is not: one tall
-// clump at (-2.63, 0.12) sits directly on the sightline to the whole lower-left
-// of the frame, and sweeping the reef footprint for a clear line finds nothing
-// better than half this much occlusion, at the cost of pushing the octopus to
-// the frame edge. The fish live behind the same blades. Size is at the top of
-// the honest range for a common octopus to buy back some legibility.
-const OCTOPUS_PERCH = new Vector3(-4.4, -3.18, -1.85);
+// Not on the hero mass stage left, which would be the better composition on a
+// wide screen. The portrait framing a phone gets spans only about +-2.3 m at
+// this depth, and every flanking position is outside it, so an octopus on the
+// hero mass simply does not exist on the device this is mostly watched on.
+// Size is at the top of the honest range for a common octopus, to hold up
+// against the 28% fog transmittance at this distance.
+const OCTOPUS_PERCH = new Vector3(-1.6, -3.18, -4.3);
 
 export class CreatureManager {
   private cruisers: Cruiser[] = [];
